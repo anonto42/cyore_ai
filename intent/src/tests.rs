@@ -144,7 +144,7 @@ fn test_missing_model_hint() {
 fn test_int8_model_matches_and_loads_from_static_bytes() {
     let predictor = trained_predictor();
     let device = burn::prelude::Device::flex();
-    let q8 = store::quantize(predictor.model(), &device);
+    let q8 = store::quantize(predictor.model(), &predictor.meta().config, &device);
     let dir = std::env::temp_dir().join(format!("cyore-intent-q8-{}", std::process::id()));
     store::save(&dir, predictor.model(), predictor.meta()).unwrap();
     store::save_q8(&dir, &q8).unwrap();

@@ -19,7 +19,7 @@ const USAGE: &str = "\
 Train, evaluate and use the Stage 2 intent + slot model.
 
 Usage:
-  intent train   [--data DIR] [--out DIR] [--epochs N] [--seed N] [--show-test]
+  intent train    [--data DIR] [--out DIR] [--epochs N] [--seed N] [--word-dropout P] [--show-test]
   intent eval     [--data DIR] [--model DIR] [--set test|dev] [--q8]
   intent predict  [--model DIR] [--threshold P] [--q8] <request...>
   intent quantize [--data DIR] [--model DIR]
@@ -29,6 +29,7 @@ Options:
   --out DIR        Where train saves the model      [default: data/models/intent]
   --model DIR      Where eval/predict load it from  [default: data/models/intent]
   --epochs N       Maximum training epochs          [default: 40]
+  --word-dropout P Chance a known context word is hidden in training  [default: 0.1]
   --seed N         Random seed                      [default: 42]
   --threshold P    Minimum confidence to suggest a command, 0..1  [default: 0.7]
   --set NAME       Which hand-written set eval scores: test or dev  [default: test]
@@ -54,6 +55,7 @@ struct Options {
     data: PathBuf,
     model: PathBuf,
     epochs: usize,
+    word_dropout: f64,
     seed: u64,
     threshold: f32,
     set: String,
@@ -67,6 +69,7 @@ fn parse_options(args: &[String], allowed: &[&str]) -> Result<Options, Failure> 
         data: PathBuf::from("data/commands"),
         model: PathBuf::from("data/models/intent"),
         epochs: TrainConfig::default().epochs,
+        word_dropout: TrainConfig::default().word_dropout,
         seed: TrainConfig::default().seed,
         threshold: DEFAULT_THRESHOLD,
         set: "test".to_string(),
@@ -99,6 +102,13 @@ fn parse_options(args: &[String], allowed: &[&str]) -> Result<Options, Failure> 
             "--data" => o.data = PathBuf::from(value),
             "--out" | "--model" => o.model = PathBuf::from(value),
             "--epochs" => o.epochs = value.parse().ok().filter(|&n| n > 0).ok_or_else(bad)?,
+            "--word-dropout" => {
+                o.word_dropout = value
+                    .parse()
+                    .ok()
+                    .filter(|p: &f64| (0.0..1.0).contains(p))
+                    .ok_or_else(bad)?
+            }
             "--seed" => o.seed = value.parse().map_err(|_| bad())?,
             "--set" if value == "test" || value == "dev" => o.set = value.clone(),
             "--set" => return Err(bad()),
@@ -157,6 +167,7 @@ fn train(o: &Options) -> Result<(), Failure> {
     };
     let tc = TrainConfig {
         epochs: o.epochs,
+        word_dropout: o.word_dropout,
         seed: o.seed,
         ..TrainConfig::default()
     };
@@ -278,7 +289,7 @@ fn load_predictor(o: &Options) -> Result<Predictor, Failure> {
 fn quantize(o: &Options) -> Result<(), Failure> {
     let f32_model = Predictor::load(&o.model).map_err(Failure::Run)?;
     let device = burn::prelude::Device::flex();
-    let q8_model = store::quantize(f32_model.model(), &device);
+    let q8_model = store::quantize(f32_model.model(), &f32_model.meta().config, &device);
     store::save_q8(&o.model, &q8_model).map_err(Failure::Run)?;
     let size = |file: &str| {
         std::fs::metadata(o.model.join(file))
@@ -286,7 +297,7 @@ fn quantize(o: &Options) -> Result<(), Failure> {
             .unwrap_or(0)
     };
     let (f32_size, q8_size) = (size(store::MODEL_FILE), size(store::MODEL_Q8_FILE));
-    println!("=== int8 quantisation (symmetric, one scale per tensor) ===\n");
+    println!("=== int8 quantisation (symmetric, one scale per row) ===\n");
     println!(
         "  f32  {:>8} bytes  {}\n  int8 {:>8} bytes  {}  ({:.0}% of f32)",
         f32_size,
@@ -371,7 +382,14 @@ fn main() -> ExitCode {
     let result = match args[0].as_str() {
         "train" => parse_options(
             rest,
-            &["--data", "--out", "--epochs", "--seed", "--show-test"],
+            &[
+                "--data",
+                "--out",
+                "--epochs",
+                "--seed",
+                "--word-dropout",
+                "--show-test",
+            ],
         )
         .and_then(|o| {
             if o.words.is_empty() {

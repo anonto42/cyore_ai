@@ -34,7 +34,8 @@ impl Default for TrainConfig {
             epochs: 40,
             batch_size: 32,
             learning_rate: 2e-3,
-            word_dropout: 0.05,
+            // 0.1 chosen on the development set (improve-phrasing-coverage); was 0.05.
+            word_dropout: 0.1,
             patience: 8,
             seed: 42,
         }
