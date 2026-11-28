@@ -1,14 +1,13 @@
 // Generate the Stage 2 command dataset: validate the catalog, expand it into training and
 // development and test examples, and write them to JSON Lines files. See dataset/README.md.
 
-mod catalog;
 mod generate;
 mod grammar;
 mod random;
 mod validate;
 
 // Shared with other crates through the library (src/lib.rs).
-use dataset::{template, tokenize};
+use dataset::{catalog, template, tokenize};
 
 use std::fs;
 use std::io::Write;
