@@ -37,7 +37,7 @@ Cyore treats every model output as untrusted input. The rules below are enforced
    Training datasets must not contain real secrets, hostnames, or personal paths.
 
 > [!NOTE]
-> The agent (Stage 3) is not built yet. These guarantees are the requirements it must meet, and any deviation from them counts as a security bug.
+> These guarantees are enforced by the `cyore` agent (Stage 3). Every check lives in [`agent/src/safety.rs`](agent/src/safety.rs) and each one has a test; the confirmation prompt is in [`agent/src/agent.rs`](agent/src/agent.rs). Any way to run a command without confirmation, or to get a blocklisted command past `check`, is a security bug.
 
 ---
 

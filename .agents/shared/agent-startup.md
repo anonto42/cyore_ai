@@ -34,6 +34,11 @@ When starting any new task, bug fix, or feature in this repository, follow these
      `metrics.rs`, `main.rs` (`train|eval|predict`). Burn 0.22 API: `Tensor<D>` has no backend
      parameter; `Device::flex()` (+ `.autodiff()` for training). Output: `data/models/intent/`.
      Never tune on `test.jsonl`; use `dev.jsonl`.
+   - `agent/src/`: `safety.rs` (`check` → `CheckedCommand`, the only runnable type; allowlist,
+     blocklist, option injection, `~` expansion), `runner.rs` (`Runner` trait, `ProcessRunner`:
+     no shell, timeout, caps), `steps.rs`, `memory.rs`, `tools.rs` (`Tool` trait, built-ins,
+     `ModelTool`/`Interpreter`), `agent.rs` (the loop; IO, model and runner are injected for
+     tests), `main.rs` (binary `cyore`). Any change here must keep "nothing runs without y".
 5. **Run Verification Before & After:**
    Always run `make check` (`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`,
    release build) before finishing any edit.

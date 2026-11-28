@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["xor", "mnist", "dataset", "intent"]
+members = ["xor", "mnist", "dataset", "intent", "agent"]
 
 # Stage 4 of the learning plan: small, fast, single-file release binaries.
 [profile.release]

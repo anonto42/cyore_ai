@@ -1,0 +1,15 @@
+[package]
+name = "agent"
+version = "0.1.0"
+edition = "2024"
+
+# Stage 3: the program people run. No new third-party crates: the model comes from our own
+# `intent` crate (which brings Burn), and the catalog from `dataset` (used in tests to check the
+# allowlist covers every command the model can produce).
+[[bin]]
+name = "cyore"
+path = "src/main.rs"
+
+[dependencies]
+dataset = { path = "../dataset" }
+intent = { path = "../intent" }

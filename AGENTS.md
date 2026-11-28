@@ -31,7 +31,11 @@ It is a Cargo workspace (root `Cargo.toml`); each learning milestone is its own 
   backend): embedding → BiGRU → intent and slot-tag heads, plus a bag-of-words baseline.
   Library (`Predictor`) for the agent, and `intent train|eval|predict`. Test intent accuracy
   62.3% (target 70%, not yet met); see intent/README.md.
-- Planned members: the agent (Stage 3).
+- **`agent/`** (Stage 3, done): the `cyore` binary. Perceive → decide → act → observe loop over
+  the `intent` model; `safety.rs` is the single choke point (allowlist, blocklist, option
+  injection, no shell); every command is shown and needs `y`. Tool trait, 20-entry memory,
+  multi-step requests, dry run.
+- Planned: Stage 4 packaging (int8 weights, `include_bytes!`, cross-compilation).
 
 The owner is learning; prefer clear, well-commented code that explains *why* over clever code.
 

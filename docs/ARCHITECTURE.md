@@ -6,8 +6,8 @@ One Cargo workspace with one crate per learning milestone. Each crate stands alo
 xor/      Stage 1   2 → 4 → 1 sigmoid network, MSE, per-example SGD     (std only, done)
 mnist/    Stage 1   784 → 128 → 10 dense classifier, softmax + CE      (std only, done)
 dataset/  Stage 2   command catalog → train/test JSONL with intents + BIO slot tags (done)
-model/    Stage 2   Burn intent classifier + slot model, then seq2seq   (planned)
-agent/    Stage 3   confirm-before-run agent with a safety layer        (planned)
+intent/   Stage 2   Burn embedding → BiGRU → intent + slot heads        (done)
+agent/    Stage 3   `cyore`: confirm-before-run agent with a safety layer (done)
           Stage 4   int8 weights embedded with include_bytes!, one binary (planned)
 ```
 
@@ -76,7 +76,7 @@ Result with the defaults and seed 42: **97.96% test accuracy after 10 epochs**.
 
 ---
 
-## Planned: the agent (Stages 2–4)
+## The agent (Stages 2–4; Stage 4 packaging still planned)
 ```
 request ──► model ──► (command, confidence) ──► safety layer ──► "Run this? (y/n)" ──► executor
              │                                    │                                    │
@@ -88,7 +88,7 @@ request ──► model ──► (command, confidence) ──► safety layer �
 - **Memory**: A short history of recent commands for multi-step tasks.
 - **Packaging**: int8 weights embedded with `include_bytes!`, Burn's pure-Rust CPU (`flex`) backend, loaded once at start-up.
 
-The rules the agent must enforce are in [Safety Rules](../.agents/shared/rules/safety.md) and [SECURITY.md](../SECURITY.md).
+The rules the agent must enforce are in [Safety Rules](../.agents/shared/rules/safety.md) and [SECURITY.md](../SECURITY.md). They are implemented in `agent/src/safety.rs` (a single `check` that is the only way to build a runnable `CheckedCommand`) and `agent/src/runner.rs` (no shell, timeout, output caps); see [agent/README.md](../agent/README.md).
 
 ---
 

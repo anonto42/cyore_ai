@@ -62,7 +62,7 @@
 
 8. **Memory:** a ring of 20 `Entry { command, outcome }`, where outcome is `Ran(exit code)`, `TimedOut`, `FailedToStart`, or `Declined`. Refused commands are not remembered, because they were never proposed to the user. `again` re-proposes the newest entry's command with its original slots, so it is checked again.
 
-9. **Observe → continue or stop.** A non-zero exit, a timeout or a start failure marks the step failed. Remaining steps of the same request are skipped with "skipped the remaining N step(s) because the last command failed". A decline only skips that step: the user chose not to run it, which is not a failure.
+9. **Observe → continue or stop.** A non-zero exit, a timeout, a start failure, or a safety refusal marks the step failed (a refused step means the plan went somewhere unsafe, so the rest is not trusted either). Remaining steps of the same request are skipped with "skipped the remaining N step(s) because the last command failed". A decline only skips that step: the user chose not to run it, which is not a failure.
 
 10. **CLI:** `cyore [--model DIR] [--threshold P] [--timeout SECS] [--dry-run] [request…]`, hand-parsed like the other crates. Exit status: 2 for usage, 1 if the model cannot be loaded, otherwise 0 (one-shot returns 1 if its command failed). The prompt is `cyore> ` and is printed only when stdin is a terminal, detected with `std::io::IsTerminal`, so piped input gives clean output for tests and scripts.
 

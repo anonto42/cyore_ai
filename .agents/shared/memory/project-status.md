@@ -12,7 +12,7 @@ Last updated: 2026-11-28
 | 2 | Command dataset generator (`dataset/`) | Done — 51 intents, 7,650 train / 162 dev / 162 test examples (hand-written held-out sets), seed 42 |
 | 2 | Burn intent + slot model (`intent/`) | Built; test intent 62.3% / command 60.5% (target 70% / 60%): intent target not met. ~18 s training, 4.8 MB binary, 356 KB weights |
 | 2 | Tiny seq2seq transformer | Not started |
-| 3 | Rust agent with confirm-before-run and safety rules | Not started |
+| 3 | Rust agent `cyore` (`agent/`) | Done — confirm-before-run loop, safety choke point, tools, memory, multi-step; 4.1 MiB binary, 10.7 MiB peak RSS (one-shot dry run, getrusage) |
 | 4 | int8 quantisation, `include_bytes!` weights, cross-compile | Release profile already set in root `Cargo.toml` |
 
 ## `xor` design
@@ -68,8 +68,23 @@ Last updated: 2026-11-28
   independent. A test set written by someone else is the stronger check.
 - At threshold 0.7: 71% of test requests are answered, 77% of those correctly. 10/12
   out-of-scope test requests get no command; the 2 that slip through map to harmless `pwd`/`lsblk`.
+- `add-intent-model` is still open: its 70% test-intent target was missed, and lowering it needs
+  the owner's explicit decision.
 - Next lever: more varied *human-written* training sentences (or paraphrase augmentation), not
   a bigger network. Do not edit the catalog based on test errors.
+
+## `agent` design
+
+- `safety::check` is the only constructor of `CheckedCommand`; `Runner::run` only takes that type.
+- Order: blocklist → allowlist → shell metacharacters → option injection (slot value starting
+  with `-`) → `~` expansion. Allowlist is owned by the agent and tested against every catalog
+  command filled with real slot values.
+- `ProcessRunner`: stdin closed, stdout/stderr drained on threads, `try_wait` polling, kill at
+  timeout, 200 lines / 64 KB per stream.
+- A failed, timed-out, unstartable or refused step stops the rest of a multi-step request; a
+  declined step does not.
+- Tests inject a fake `Interpreter` and a recording `Runner`; "nothing runs without y" is tested
+  with seven non-yes answers plus end of input.
 
 ## Known follow-ups
 
