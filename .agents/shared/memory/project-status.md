@@ -9,8 +9,9 @@ Last updated: 2026-11-28
 | 1 | XOR network in pure Rust (`xor/`) | Done — converges to MSE ≈ 3e-5 in 20k epochs, seed 42 |
 | 1 | MNIST digit recogniser (`mnist/`) | Done — 97.96% test accuracy after 10 epochs (defaults, seed 42), ≈6 s/epoch release on a 12-thread laptop, peak RAM ≈430 MB |
 | 1 | Survey architectures (dense, CNN, RNN, transformer) | Next (study, no code) |
-| 2 | Command dataset generator (`dataset/`) | Done — 51 intents, 4,080 train / 162 hand-written test examples, seed 42 |
-| 2 | Burn: intent classifier + slot model, then tiny seq2seq | Next |
+| 2 | Command dataset generator (`dataset/`) | Done — 51 intents, 7,650 train / 162 dev / 162 test examples (hand-written held-out sets), seed 42 |
+| 2 | Burn intent + slot model (`intent/`) | Built; test intent 62.3% / command 60.5% (target 70% / 60%): intent target not met. ~18 s training, 4.8 MB binary, 356 KB weights |
+| 2 | Tiny seq2seq transformer | Not started |
 | 3 | Rust agent with confirm-before-run and safety rules | Not started |
 | 4 | int8 quantisation, `include_bytes!` weights, cross-compile | Release profile already set in root `Cargo.toml` |
 
@@ -48,6 +49,27 @@ Last updated: 2026-11-28
   `?!,` from each token and `.` from the last.
 - Hard cases on purpose: `list_by_size`/`dir_size`, `processes`/`top_cpu`, `whoami`/`logged_in_users`,
   `git_status`/`git_diff`, `os_info`/`kernel_version`.
+
+## `intent` results and lessons (seed 42)
+
+| Run | validation intent | dev intent / command | test intent / command |
+|---|---|---|---|
+| 1. first run (4,080 train, no dev set) | 99.8% | – | 48.8% / 45.7% |
+| 2. + dev set for epoch selection | 99.3% | 76.5% / 71.6% | not looked at |
+| 3. + line-first sampling, contractions, 150/intent | 99.9% | 77.8% / 75.9% | not looked at |
+| 4. + widened grammar (general synonyms, from dev errors) | 99.6% | 96.9% / 95.7% | **62.3% / 60.5%** |
+
+- Bag-of-words baseline on test: 47.5% (run 1) → 67.9% (run 4), better than the joint model's
+  62.3%. With this little data, vocabulary coverage matters more than architecture.
+- Validation (same grammar as training) is ~99% throughout and useless for selection. The dev
+  set is now optimistic, because the grammar was widened to fix its errors. Test was looked at
+  only in runs 1 and 4.
+- Caveat: the same author wrote the dev and test sentences, so the test is not fully
+  independent. A test set written by someone else is the stronger check.
+- At threshold 0.7: 71% of test requests are answered, 77% of those correctly. 10/12
+  out-of-scope test requests get no command; the 2 that slip through map to harmless `pwd`/`lsblk`.
+- Next lever: more varied *human-written* training sentences (or paraphrase augmentation), not
+  a bigger network. Do not edit the catalog based on test errors.
 
 ## Known follow-ups
 

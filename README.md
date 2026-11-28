@@ -62,7 +62,7 @@ The project grows in four stages. It starts with a neural network written by han
 
 ### Stage 4: Package for Minimal Resource Use
 - **int8 Quantisation**: Quantise the model weights to 8-bit to cut size and RAM by about 4x.
-- **CPU-Only Inference**: Use Burn's CPU backend (`ndarray`) so no GPU is needed.
+- **CPU-Only Inference**: Use Burn's pure-Rust CPU backend (`flex`; `ndarray` is deprecated since Burn 0.22) so no GPU is needed.
 - **Single-File Binary**: Embed the weights in the binary with `include_bytes!`.
 - **Release Profile**: `opt-level = 3` (or `"z"` for size), `lto = true`, `codegen-units = 1`, `strip = true`, `panic = "abort"`.
 - **Lean Runtime**: Load the model once at start-up, keep it in memory, and avoid heavy dependencies.
@@ -95,7 +95,7 @@ The target pipeline for the finished agent (Stages 2–4):
                                           | Plain-English request
                                           v
                   +----------------------------------------------+
-                  |         Model (Burn, CPU / ndarray)          |
+                  |          Model (Burn, CPU / flex)            |
                   |   Intent Classifier + Slot Model, or a tiny  |
                   |   seq2seq transformer (int8, embedded)       |
                   +-----------------------+----------------------+

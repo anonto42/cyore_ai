@@ -7,18 +7,18 @@ Turns one plain-English request into a terminal command: a trained model picks t
 ## ADDED Requirements
 
 ### Requirement: Training from the command dataset
-The training command SHALL read the generated command dataset, hold out a seeded validation split from the training file, train the joint intent and slot model, and save the weights together with everything needed to use them (vocabulary, intent list, tag list, model sizes) into the model directory. The hand-written test file SHALL NOT be used for training or for choosing hyperparameters or the saved epoch.
+The training command SHALL read the generated command dataset, hold out a seeded validation split from the training file, train the joint intent and slot model, keep the epoch that does best on the hand-written development set, and save the weights together with everything needed to use them (vocabulary, intent list, tag list, model sizes) into the model directory. The hand-written test file SHALL NOT be used for training or for choosing hyperparameters or the saved epoch.
 
 #### Scenario: Train with defaults
 - **WHEN** the training command runs with the dataset present
-- **THEN** it prints per-epoch training loss and validation intent accuracy, saves the model to the model directory, and prints the final metrics report
+- **THEN** it prints per-epoch training loss, validation intent accuracy and development accuracy, saves the model to the model directory, and prints the final metrics report
 
 #### Scenario: Missing dataset
 - **WHEN** the training command runs and the dataset files do not exist
 - **THEN** it exits with a non-zero status and a message that includes `make commands-data`, without panicking
 
 ### Requirement: Baseline comparison
-Training SHALL also train a bag-of-words dense intent classifier on the same split and report its validation and test intent accuracy next to the joint model's.
+Training SHALL also train a bag-of-words dense intent classifier on the same split and report its validation, development and test intent accuracy next to the joint model's.
 
 #### Scenario: Report shows both
 - **WHEN** training completes
@@ -62,7 +62,7 @@ A saved model SHALL load into an identical model: predictions from the loaded mo
 - **THEN** it exits with a non-zero status and a message that includes `make intent-train`
 
 ### Requirement: Metrics report
-Evaluation SHALL report on the test set: intent accuracy, slot token accuracy, command accuracy (predicted command string equals the expected command, where `unknown` counts as correct when both are null), `unknown` precision and recall, the five most frequent confused intent pairs, and accuracy and coverage at confidence thresholds 0.5, 0.7 and 0.9.
+Evaluation SHALL report on the test set (and, on request, the development set): intent accuracy, slot token accuracy, command accuracy (predicted command string equals the expected command, where `unknown` counts as correct when both are null), `unknown` precision and recall, the five most frequent confused intent pairs, and accuracy and coverage at confidence thresholds 0.5, 0.7 and 0.9.
 
 #### Scenario: Report contents
 - **WHEN** evaluation runs on the test set with a trained model

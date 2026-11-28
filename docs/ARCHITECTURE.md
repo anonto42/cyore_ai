@@ -86,7 +86,7 @@ request ──► model ──► (command, confidence) ──► safety layer �
 
 - **Tool trait**: Each capability (run a command, read a file, ...) is one implementation, so new tools are easy to add.
 - **Memory**: A short history of recent commands for multi-step tasks.
-- **Packaging**: int8 weights embedded with `include_bytes!`, Burn's CPU (`ndarray`) backend, loaded once at start-up.
+- **Packaging**: int8 weights embedded with `include_bytes!`, Burn's pure-Rust CPU (`flex`) backend, loaded once at start-up.
 
 The rules the agent must enforce are in [Safety Rules](../.agents/shared/rules/safety.md) and [SECURITY.md](../SECURITY.md).
 

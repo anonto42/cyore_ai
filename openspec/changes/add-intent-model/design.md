@@ -62,7 +62,7 @@ One GRU runs left to right and another right to left, and hₜ = [h→ₜ ; h←
 
 5. **Length-bucketed batches, no padding.** Examples are grouped by token count and batched within each group (batch size up to 32). Every batch is rectangular, so there are no masks, mean pooling is exact, and the reverse GRU never reads padding. Each epoch shuffles examples within buckets and the order of batches, using the seeded xorshift `Rng` (copied once more; extracting a shared utility crate is still deferred).
 
-6. **Validation split and model selection.** A seeded, per-intent 10% of `train.jsonl` is held out. After each epoch the validation intent accuracy is measured, and the best epoch's model is kept (cloned in memory) and saved. Training stops early after 5 epochs without improvement. The test set is only read by `eval` and by the end-of-training report; it never influences training.
+6. **Validation split, development set, and model selection.** A seeded, per-intent 10% of `train.jsonl` is held out as *validation*: it shows whether the model fits the grammar. After each epoch, **exact match on the hand-written development set** decides which epoch is kept, since it is the only signal of generalisation that may be used. Exact match means the intent and every slot tag are right. Intent accuracy alone peaks before the slot tagger learns anything, and validation scores about 99% on every epoch, so neither can tell epochs apart. Ties go to the later epoch. Training stops after 8 epochs without improvement. The test set is only read by `eval` and by the end-of-training report; it never influences training.
 
 7. **Defaults:** d = 64, k = 64, epochs 40, batch 32, Adam lr 2·10⁻³, word dropout 0.05, seed 42, prediction threshold 0.7. These come from the survey's size estimate and standard practice for small RNN taggers; they may change only by looking at validation numbers.
 
@@ -70,7 +70,9 @@ One GRU runs left to right and another right to left, and hₜ = [h→ₜ ; h←
    - `model.bpk`: joint model weights (BurnpackStore)
    - `meta.json`: vocabulary, intent names with command templates, tag names, d, k, seed, and the training metrics
 
-   Writes go to a temporary name and are then renamed, which also gets around BurnpackStore's refusal to overwrite. The baseline is trained for comparison only and is not saved.
+   Burnpack already writes through a scratch file and renames it, so `.overwrite(true)` is enough for the weights; `meta.json` is written to a temporary name and renamed. The baseline is trained for comparison only and is not saved.
+
+13. **Why a development set (added after the first run).** The first run scored 99.8% on validation and 48.8% intent accuracy on test. The bag-of-words baseline scored 47.5%, so the architecture was not the limit. 25% of the test's context words, in 134 of 162 sentences, never occur in training, so the model sees them all as `<word>`. Fixing that means widening the catalog's wording, and that needs held-out sentences that may legitimately be looked at. The dataset therefore gains `dev.jsonl`: hand-written like the test set, written without consulting it, using the test slot pools. Only development errors guide catalog and model changes; the test set is evaluated once at the end. Limitation: the same author wrote both sets, so the test is not fully independent; a test set written by someone else would be the stronger check.
 
 9. **Prediction rules.**
    - Tokenize with the shared rule and keep at most 64 tokens.

@@ -27,7 +27,13 @@ When starting any new task, bug fix, or feature in this repository, follow these
    - `dataset/src/`: `catalog.rs` (intents, slot pools, allowlist: edit this to add data),
      `grammar.rs` (phrasing grammar), `template.rs` (command templates), `tokenize.rs` (the shared
      tokenization rule), `validate.rs` (catalog checks), `generate.rs` (examples, JSON types),
-     `random.rs`, `main.rs` (CLI, atomic writes). Output: git-ignored `data/commands/`.
+     `lib.rs` (exports `tokenize` + `template` for other crates), `random.rs`, `main.rs` (CLI, atomic writes). Output: git-ignored `data/commands/`.
+   - `intent/src/`: `data.rs`, `vocab.rs` (vocabulary + shape tokens), `batch.rs` (equal-length
+     batches), `model.rs` (`JointModel`, `BagOfWords`), `train.rs` (loop, dev-based epoch
+     selection), `store.rs` (`model.bpk` + `meta.json`), `predict.rs` (`Predictor`, `decode`),
+     `metrics.rs`, `main.rs` (`train|eval|predict`). Burn 0.22 API: `Tensor<D>` has no backend
+     parameter; `Device::flex()` (+ `.autodiff()` for training). Output: `data/models/intent/`.
+     Never tune on `test.jsonl`; use `dev.jsonl`.
 5. **Run Verification Before & After:**
    Always run `make check` (`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`,
    release build) before finishing any edit.
