@@ -13,7 +13,7 @@ MNIST_FILES := train-images-idx3-ubyte train-labels-idx1-ubyte t10k-images-idx3-
 # Extra options for `make mnist`, e.g. make mnist ARGS="--epochs 2"
 ARGS ?=
 
-.PHONY: help build run dev test bench lint fmt fmt-check clean check spec size docker-build docker-run mnist-data mnist commands-data intent-train intent-eval intent-predict intent-quantize agent agent-run release cross-arm64
+.PHONY: help build run dev test bench lint fmt fmt-check clean check spec size docker-build docker-run mnist-data mnist commands-data intent-train intent-eval intent-predict intent-quantize intent-eval-human agent agent-run release cross-arm64
 
 help:
 	@printf '%s\n' 'Cyore commands (CRATE=$(CRATE); override with CRATE=<member>):'
@@ -34,6 +34,7 @@ help:
 	@printf '%s\n' '  make intent-eval   Evaluate the trained model on the hand-written test set'
 	@printf '%s\n' '  make intent-predict ARGS="show me the files"  Turn one request into a command'
 	@printf '%s\n' '  make intent-quantize Write the int8 copy of the model and compare its accuracy'
+	@printf '%s\n' '  make intent-eval-human Score the model on dataset/human_test.txt (totals only)'
 	@printf '%s\n' '  make agent         Build the cyore agent (release): ./target/release/cyore'
 	@printf '%s\n' '  make agent-run     Run cyore; one request via ARGS="show me the files", else interactive'
 	@printf '%s\n' '  make release       Dataset → train → int8 → one-file ./target/dist/cyore, model built in'
@@ -111,6 +112,11 @@ intent-predict:
 
 intent-quantize:
 	@$(CARGO) run --release -q -p intent -- quantize $(ARGS)
+
+# Converts dataset/human_test.txt (validating it) and scores the current model on it.
+intent-eval-human:
+	@$(CARGO) run --release -q -p dataset > /dev/null
+	@$(CARGO) run --release -q -p intent -- eval --set human $(ARGS)
 
 agent:
 	@$(CARGO) build --release -p agent

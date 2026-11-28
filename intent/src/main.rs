@@ -20,7 +20,7 @@ Train, evaluate and use the Stage 2 intent + slot model.
 
 Usage:
   intent train    [--data DIR] [--out DIR] [--epochs N] [--seed N] [--word-dropout P] [--show-test]
-  intent eval     [--data DIR] [--model DIR] [--set test|dev] [--q8]
+  intent eval     [--data DIR] [--model DIR] [--set test|dev|human] [--q8]
   intent predict  [--model DIR] [--threshold P] [--q8] <request...>
   intent quantize [--data DIR] [--model DIR]
 
@@ -32,7 +32,7 @@ Options:
   --word-dropout P Chance a known context word is hidden in training  [default: 0.1]
   --seed N         Random seed                      [default: 42]
   --threshold P    Minimum confidence to suggest a command, 0..1  [default: 0.7]
-  --set NAME       Which hand-written set eval scores: test or dev  [default: test]
+  --set NAME       Which hand-written set eval scores: test, dev or human [default: test]
   --q8             Use the int8 model (model-q8.bpk) instead of the f32 one
   --show-test      Also report the test set after training (keep it for the final run:
                    decisions must be based on the development set only)
@@ -110,7 +110,7 @@ fn parse_options(args: &[String], allowed: &[&str]) -> Result<Options, Failure> 
                     .ok_or_else(bad)?
             }
             "--seed" => o.seed = value.parse().map_err(|_| bad())?,
-            "--set" if value == "test" || value == "dev" => o.set = value.clone(),
+            "--set" if ["test", "dev", "human"].contains(&value.as_str()) => o.set = value.clone(),
             "--set" => return Err(bad()),
             _ => {
                 o.threshold = value
@@ -327,7 +327,56 @@ fn quantize(o: &Options) -> Result<(), Failure> {
     Ok(())
 }
 
+/// Scores on the person-written test set (dataset/human_test.txt). Report only: this prints
+/// totals and never a sentence, so nobody tuning the model learns what is in it
+/// (.agents/shared/rules/evaluation.md).
+fn eval_human(o: &Options) -> Result<(), Failure> {
+    let path = o.data.join("human.jsonl");
+    if !path.exists() {
+        println!(
+            "No human test sentences yet. Write them in dataset/human_test.txt, then run \
+             `make commands-data && make intent-train && make intent-eval-human`."
+        );
+        return Ok(());
+    }
+    let predictor = load_predictor(o)?;
+    let human = data::read_examples(&path).map_err(Failure::Run)?;
+    println!(
+        "=== Human-written test set ({} requests; report only) ===",
+        human.len()
+    );
+
+    // Was the model trained before these sentences were added? Then some of them may have been
+    // in its training data, and the score is not clean.
+    let modified = |p: &std::path::Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
+    let model_time = modified(&o.model.join(store::META_FILE));
+    if let (Some(set), Some(model)) = (modified(&path), model_time)
+        && set > model
+    {
+        println!(
+            "  warning: the model is older than the human test set; retrain with \
+             `make intent-train` for a clean score"
+        );
+    }
+    let lower = |examples: &[Example]| -> std::collections::HashSet<String> {
+        examples.iter().map(|e| e.text.to_lowercase()).collect()
+    };
+    for set in ["dev", "test"] {
+        if let Ok(other) = data::read_examples(&o.data.join(format!("{set}.jsonl"))) {
+            let shared = lower(&human).intersection(&lower(&other)).count();
+            if shared > 0 {
+                println!("  note: {shared} human request(s) also appear in the {set} set");
+            }
+        }
+    }
+    print!("{}", report(&predictor, &human));
+    Ok(())
+}
+
 fn eval(o: &Options) -> Result<(), Failure> {
+    if o.set == "human" {
+        return eval_human(o);
+    }
     let predictor = load_predictor(o)?;
     let path = o.data.join(format!("{}.jsonl", o.set));
     let examples = data::read_examples(&path).map_err(Failure::Run)?;

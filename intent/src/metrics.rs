@@ -216,6 +216,23 @@ mod tests {
         assert!(text.contains("intent accuracy     50.0%"), "{text}");
     }
 
+    /// The human test set is report-only: a report must never contain the sentences it scored.
+    #[test]
+    fn test_report_never_contains_sentences() {
+        let examples = [
+            example("zebra quantum folder please", "list_files", None),
+            example("flamingo disk check", "unknown", None),
+        ];
+        let predictions = [
+            prediction("list_files", 0.9, &["O"; 4], None),
+            prediction("disk_space", 0.6, &["O"; 3], None),
+        ];
+        let text = evaluate(&examples, &predictions).to_string();
+        for word in ["zebra", "quantum", "flamingo"] {
+            assert!(!text.contains(word), "report leaked \"{word}\":\n{text}");
+        }
+    }
+
     #[test]
     fn test_no_unknown_examples() {
         let r = evaluate(
