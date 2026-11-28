@@ -31,7 +31,7 @@
 
 ## 6. Integration checks
 
-- [ ] 6.1 Run `make commands-data && make intent-train && make intent-eval`; verify validation intent accuracy ≥ 95%, test intent accuracy ≥ 70%, test command accuracy ≥ 60%, and record all numbers, training time and model size in `.agents/shared/memory/project-status.md` (NOT MET: validation 99.6% ✓, test command 60.5% ✓, test intent 62.3% ✗ (recorded; see project-status.md))
+- [ ] 6.1 Run `make commands-data && make intent-train && make intent-eval`; verify validation intent accuracy ≥ 95%, test intent accuracy ≥ 70%, test command accuracy ≥ 60%, and record all numbers, training time and model size in `.agents/shared/memory/project-status.md` (NOT MET: validation 99.6% ✓, test command 60.5% ✓, test intent 62.3% ✗. After improve-phrasing-coverage: validation 99.1% ✓, test intent 62.3% ✗, test command 59.9% ✗; see project-status.md)
 - [x] 6.2 Train twice with the same seed; verify identical per-epoch losses and metrics
 - [x] 6.3 Run `make intent-predict` on 5 requests not in any dataset file (including one destructive and one nonsense request); verify sensible output and record it in `intent/README.md`
 - [x] 6.4 Measure `ls -lh target/release/intent`; verify it is within 5–30 MB

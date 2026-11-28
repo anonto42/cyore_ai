@@ -13,6 +13,9 @@ The Stage 2 model reaches 99.6% on validation but 62.3% intent accuracy on the h
   - drop "me" after a verb: "show me the files" → "show the files"
   - swap the leading display verb within one synonym group: show, list, display, print, view, get
   The variants never touch slot placeholders, and validation still guarantees that no training sentence equals a held-out one.
+- **The command itself** (added after the first development errors): each intent also accepts its own command name typed as a request ("wc notes.txt", "stat setup.py", "git remote"), derived from its template, and only when the words are unambiguous across intents. A few synonym lines come from development errors (`dns`, `nslookup`, `lookup`).
+- **A validation gap closed** (found while scoring): a held-out sentence listed under two intents is now an error. The second development batch for `date` had landed under `calendar`.
+- **int8 per row** (found while requantizing): the retrained model lost 1.2 points on test with one scale per tensor, more than the 1 point `model-packaging` allows. Quantization now uses one scale per row, which matches f32 at 29% of the size.
 - **Model setting:** choose the word-dropout rate (0.05, 0.1 or 0.2) by development exact match.
 - **Report** development numbers before and after, then evaluate the test set once with the final settings and record the result, met or not, in `add-intent-model`'s records and `project-status.md`.
 

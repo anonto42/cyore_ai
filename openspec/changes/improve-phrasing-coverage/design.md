@@ -31,6 +31,30 @@
 
 5. **Reporting:** a table in `project-status.md` with the development set (old 162, new batch, all) before and after, and the final test once.
 
+6. **The command itself, derived and not hand-written** (added after the first scoring). Development errors included "wc setup.py", "stat setup.py" and "dns debian.org": people type the command. `Template::spoken_forms` drops options and numbers (`wc -l {file}` → `wc {file}`, `grep -rn {text} {dir=.}` → `grep {text} {dir}` and `grep {text}`). `validate::add_spoken_commands` adds them as one extra phrasing line per intent after validation, skipping any form that another intent's grammar owns or that two intents derive (`df`, `uname`, `ls`, `ps aux`, `git branch`). They are not counted towards the 20-phrasing minimum.
+
+7. **Bug found and fixed:** the second batch for `date` was inserted into `calendar`'s development list, because `rustfmt` had put `date`'s list on one line and the insertion script ran on. The labels were fixed, and `prepare` now rejects a held-out sentence listed under two intents. The baseline was recomputed with the corrected labels.
+
+8. **int8 per row.** Requantizing the retrained model per tensor lost 1.2 test points against f32, more than the archived `model-packaging` spec allows (≤ 1). Per-block scales fix this; blocks must divide each weight's last dimension, and the intent head is 128×51. Measured options, all scored against f32 on both sets:
+
+   | scheme | dev int | test int | size |
+   |---|---|---|---|
+   | per tensor | 94.4% | 61.1% | 97,548 |
+   | blocks 16 (head per tensor) | 94.4% | 62.3% | 115,468 |
+   | blocks 32 (head per tensor) | 94.0% | 62.3% | 105,484 |
+   | **one scale per row (64 / 8 / 51)** | 94.0% | 62.3% | **101,132** |
+
+   The size limit is 30% of f32, 104,995 bytes. Per row is the finest granularity that fits, and it is a standard, easy-to-explain scheme, so it was adopted.
+
+## Results
+
+| model | full dev int / cmd | new dev batch int / cmd | test int / cmd | unknown recall (test) |
+|---|---|---|---|---|
+| before | 92.9% / 92.5% | 85.7% / 84.8% | 62.3% / 60.5% | 16.7% |
+| after (dropout 0.1) | 94.4% / 92.5% | 90.5% / 87.6% | 62.3% / 59.9% | 50.0% |
+
+The development gains did not carry over to test intent accuracy, and test command accuracy dropped by one sentence (60.5% → 59.9%), just under `add-intent-model`'s 60%. Out-of-scope recognition improved threefold. As expected, rules written by the author of both sets help that author's style of sentence more than the test's.
+
 ## Risks / Trade-offs
 
 - [Dropped articles make some sentences ambiguous between intents] → the global duplicate filter plus the cross-intent test; development accuracy shows any harm.

@@ -68,9 +68,9 @@ Stage 4 targets a **5–30 MB** binary that uses **under 100 MB of RAM**. The sh
 | Build | Size | Peak RAM | One request (load + answer) |
 |---|---|---|---|
 | `cyore`, `release` profile (`opt-level = 3`), x86_64 | 4.20 MiB | 10.7 MiB | 5.5 ms |
-| `cyore`, `dist` profile (`opt-level = "z"`), x86_64 | **2.46 MiB** | **10.2 MiB** | 5.7 ms |
+| `cyore`, `dist` profile (`opt-level = "z"`), x86_64 | **2.46 MiB** | **10.7 MiB** | 5.7 ms |
 | `cyore`, `dist`, static musl ARM64 | 1.98 MiB | not measured (no ARM machine) | not measured |
-| int8 model inside it | 97 KB (f32: 348 KB) | | |
+| int8 model inside it (one scale per row) | 99 KB (f32: 342 KB) | | |
 
 The release profile in the root `Cargo.toml` uses `lto = true`, `codegen-units = 1`, `strip = true` and `panic = "abort"`. The `dist` profile inherits it with `opt-level = "z"`: 41% smaller with the same speed, so it is used for `cyore`. Training crates keep `opt-level = 3`. Check any build with `make size CRATE=xor`.
 

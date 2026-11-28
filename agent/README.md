@@ -7,7 +7,7 @@ checks it against the safety rules, **shows it, and runs it only if you answer `
 $ cyore
 Cyore: tell me what you want to do (`help` for tools, `quit` to leave).
 cyore> show me the files in agent
-  $ ls -la agent        (list_files, confidence 0.99)
+  $ ls -la agent        (list_files, confidence 0.83)
 Run this? (y/n) y
 total 16
 drwxrwxr-x  3 md md 4096 Nov 28 20:49 .
@@ -21,7 +21,7 @@ Run this? (y/n) n
 Skipped.
 cyore> where am i and then what time is it
 Step 1/2: where am i
-  $ pwd        (current_dir, confidence 1.00)
+  $ pwd        (current_dir, confidence 0.98)
 Run this? (y/n) y
 /home/md/Code/Ananto/cyore-ai
 [done]
@@ -41,7 +41,7 @@ Run this? (y/n) y
 Sat Nov 28 08:53:24 PM +06 2026
 [done]
 cyore> delete everything in my home folder
-I'm not sure what you mean. My best guesses: current_dir (0.43), unknown (0.35), dir_size (0.07). Could you rephrase?
+I can't do that: this request is not supported.
 cyore> count the lines in Cargo.toml
   $ wc -l Cargo.toml        (count_lines, confidence 1.00)
 Run this? (y/n) y
@@ -137,7 +137,7 @@ anywhere and it works. The banner and `--help` say which model is in use:
 
 ```text
 $ ./target/dist/cyore --help | tail -1
-This build uses: embedded int8 model (95 KB)
+This build uses: embedded int8 model (99 KB)
 ```
 
 Which model is used: `--model DIR` first, otherwise the embedded model, otherwise
@@ -147,7 +147,7 @@ directory to embed.
 
 | | Size | Peak RAM | One request |
 |---|---|---|---|
-| `./target/dist/cyore` (`opt-level = "z"`) | 2.46 MiB | 10.2 MiB | 6 ms |
+| `./target/dist/cyore` (`opt-level = "z"`) | 2.46 MiB | 10.7 MiB | 6 ms |
 | `./target/release/cyore` (`opt-level = 3`) | 4.20 MiB | 10.7 MiB | 5.5 ms |
 | static ARM64 (`make cross-arm64`) | 1.98 MiB | | |
 
@@ -159,7 +159,7 @@ The Stage 4 targets are ≤ 30 MB and < 100 MB.
   unfamiliar phrasings are misread (the model's test accuracy is 62%). That is why every
   command is shown and confirmed.
 - Even simple wording can fall outside the grammar: "show my files" gets *not sure*
-  (list_files 0.41), while "show me the files" gets `ls -la` (0.99). Cyore then asks you to
+  (list_files 0.69, just under the 0.7 threshold), while "show me the files" gets `ls -la`. Cyore then asks you to
   rephrase instead of guessing, which is the threshold doing its job. The fix belongs in the
   dataset's grammar, not here.
 - Slot values are single words, so paths with spaces cannot be expressed yet.

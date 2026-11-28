@@ -9,7 +9,7 @@ Last updated: 2026-11-28
 | 1 | XOR network in pure Rust (`xor/`) | Done — converges to MSE ≈ 3e-5 in 20k epochs, seed 42 |
 | 1 | MNIST digit recogniser (`mnist/`) | Done — 97.96% test accuracy after 10 epochs (defaults, seed 42), ≈6 s/epoch release on a 12-thread laptop, peak RAM ≈430 MB |
 | 1 | Survey architectures (dense, CNN, RNN, transformer) | Next (study, no code) |
-| 2 | Command dataset generator (`dataset/`) | Done — 51 intents, 7,650 train / 162 dev / 162 test examples (hand-written held-out sets), seed 42 |
+| 2 | Command dataset generator (`dataset/`) | Done — 51 intents, 7,650 train / 267 dev / 162 test examples (hand-written held-out sets), seed 42 |
 | 2 | Burn intent + slot model (`intent/`) | Built; test intent 62.3% / command 60.5% (target 70% / 60%): intent target not met. ~18 s training, 4.8 MB binary, 356 KB weights |
 | 2 | Tiny seq2seq transformer | Not started |
 | 3 | Rust agent `cyore` (`agent/`) | Done — confirm-before-run loop, safety choke point, tools, memory, multi-step; 4.1 MiB binary, 10.7 MiB peak RSS (one-shot dry run, getrusage) |
@@ -69,11 +69,31 @@ Last updated: 2026-11-28
 - At threshold 0.7: 71% of test requests are answered, 77% of those correctly. 10/12
   out-of-scope test requests get no command; the 2 that slip through map to harmless `pwd`/`lsblk`.
 - `add-agent` and `add-packaging` archived 2026-11-28. `add-intent-model` stays open by the
-  owner's decision: the 70% test-intent target is kept, not lowered.
+  owner's decision: the 70% test-intent target is kept, not lowered. Test command accuracy is
+  now 59.9%, just under its 60% target too.
 - `add-intent-model` is still open: its 70% test-intent target was missed, and lowering it needs
   the owner's explicit decision.
 - Next lever: more varied *human-written* training sentences (or paraphrase augmentation), not
   a bigger network. Do not edit the catalog based on test errors.
+
+## improve-phrasing-coverage (2026-11-28)
+
+Second dev batch (105 everyday sentences) written and scored before any change. Dev "new" =
+that batch, "old" = the original 162.
+
+| Model | full dev int / cmd | old batch int | new batch int / cmd |
+|---|---|---|---|
+| before (old data, dropout 0.05) | 92.9% / 92.5% | 97.5% | 85.7% / 84.8% |
+| variants + command names, dropout 0.05 | 93.6% / 92.1% | 96.9% | 88.6% / 85.7% |
+| same, dropout 0.1 (**kept**) | 94.4% / 92.5% | 96.9% | 90.5% / 87.6% |
+| same, dropout 0.2 | 93.6% / 92.5% | 96.9% | 88.6% / 85.7% |
+
+- Final test (third look ever): intent 62.3% (unchanged), command 59.9% (was 60.5%), unknown
+  recall 50% (was 16.7%), precision 54.5% (was 25%). Dev gains did not carry over to test intent.
+- Found and fixed: a dev batch pasted into the wrong intent (`date` sentences under `calendar`);
+  validation now rejects a held-out sentence listed under two intents.
+- int8 now uses one scale per row: per tensor fell 1.2 points below f32 on test (spec: ≤ 1);
+  per row matches f32 at 29% of the size (spec: ≤ 30%). Block 16/32 did not fit the size budget.
 
 ## `agent` design
 

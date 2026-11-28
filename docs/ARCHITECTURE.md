@@ -86,7 +86,7 @@ request ──► model ──► (command, confidence) ──► safety layer �
 
 - **Tool trait**: Each capability (run a command, read a file, ...) is one implementation, so new tools are easy to add.
 - **Memory**: A short history of recent commands for multi-step tasks.
-- **Packaging**: int8 weights (`intent quantize`, 97 KB) embedded with `include_bytes!` by `agent/build.rs` and loaded zero-copy with `BurnpackStore::from_static`, Burn's pure-Rust CPU (`flex`) backend, loaded once at start-up. Built with the `dist` profile (`opt-level = "z"`): 2.46 MiB, 10.2 MiB peak RAM. Static musl builds for x86_64 and ARM64.
+- **Packaging**: int8 weights (`intent quantize`, one scale per row, 99 KB) embedded with `include_bytes!` by `agent/build.rs` and loaded zero-copy with `BurnpackStore::from_static`, Burn's pure-Rust CPU (`flex`) backend, loaded once at start-up. Built with the `dist` profile (`opt-level = "z"`): 2.46 MiB, 10.2 MiB peak RAM. Static musl builds for x86_64 and ARM64.
 
 The rules the agent must enforce are in [Safety Rules](../.agents/shared/rules/safety.md) and [SECURITY.md](../SECURITY.md). They are implemented in `agent/src/safety.rs` (a single `check` that is the only way to build a runnable `CheckedCommand`) and `agent/src/runner.rs` (no shell, timeout, output caps); see [agent/README.md](../agent/README.md).
 

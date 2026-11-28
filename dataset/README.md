@@ -18,7 +18,7 @@ cargo run -p dataset -- --help
 | `--seed <N>` | random seed (same seed → byte-identical files) | 42 |
 | `--per-intent <N>` | training examples per intent | 150 |
 
-With the defaults: 51 intents (50 commands + `unknown`), 7,650 training examples, 162
+With the defaults: 51 intents (50 commands + `unknown`), 7,650 training examples, 267
 hand-written development examples, and 162 hand-written test examples.
 
 ## Output files
@@ -86,6 +86,17 @@ them with `std::process::Command` and no shell. (It must expand a leading `~/` i
 instructions or `ask:` for questions; the generator then adds fitting wrappers ("can you…",
 "…please", "hey, …", "?") at random, and contracts common pairs ("what is" → "what's" or
 "whats", "i am" → "i'm").
+
+**Everyday variants**: at sampling time the generator also drops articles ("list biggest
+files"), turns "me the" into "my" and "the" into "my" before personal nouns ("show my files",
+"check my disk"), drops "me" after a display verb, and swaps the leading display verb (show,
+list, display, print, view, get). Placeholders are never touched, and a test checks that a
+variant of one intent's sentence is never another intent's sentence.
+
+**The command itself**: each intent also accepts its own command typed as a request,
+derived from the template without options or numbers: `wc -l {file}` gives "wc {file}",
+`git remote -v` gives "git remote". When two intents would derive the same words (`df -h`
+and `df -i` both give "df"), neither gets them, because they would be ambiguous.
 
 **Sampling**: for each training example the generator first picks one of the intent's grammar
 lines, then one sentence from that line. Picking among all sentences directly would let a line

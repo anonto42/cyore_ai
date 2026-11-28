@@ -89,22 +89,25 @@ is the yardstick the joint model is compared against.
 
 | | validation | development | test |
 |---|---|---|---|
-| joint model: intent | 99.6% | 96.9% | **62.3%** |
-| joint model: command | 99.6% | 95.7% | **60.5%** |
-| joint model: slot tags | 100% | 99.4% | 97.6% |
-| bag-of-words baseline: intent | 99.9% | 98.8% | 67.9% |
+| joint model: intent | 99.1% | 94.4% | **62.3%** |
+| joint model: command | 99.1% | 92.5% | **59.9%** |
+| joint model: slot tags | 100% | 99.1% | 97.8% |
+| bag-of-words baseline: intent | 99.2% | 95.9% | 61.7% |
 
-At the default threshold of 0.7, the model answers 71% of the test requests and gets 77% of
-those right. 10 of the 12 out-of-scope test requests get no command. The two that slip through
-map to `pwd` and `lsblk`, which are harmless because the dataset contains no destructive
-commands.
+The development set has 267 sentences: the original 162 plus 105 in everyday style ("show my
+files", "wc notes.txt", "disk space?"), added by improve-phrasing-coverage and scored before
+that change. At the default threshold of 0.7, the model answers 69% of the test requests and
+gets 78% of those right. It recognises 6 of the 12 out-of-scope test requests as `unknown` (was
+2), and declines most of the rest as "not sure".
 
 **What this taught us.** The first run scored 99.8% on validation and 48.8% on test.
 Validation sentences come from the same grammar as training, so they cannot reveal that a
 quarter of the words people actually use never appear in the grammar. Adding a development set
 showed where the gaps were. Widening the grammar and fixing the sampler raised the test score to
-62%, which is still short of the 70% target. The development set is now optimistic (96.9%),
-because the grammar was widened to fix its errors. And the bag-of-words baseline does better on
+62%, which is still short of the 70% target. A second round (everyday variants, the command
+names themselves, word dropout 0.1) raised the new everyday development sentences from 85.7%
+to 90.5% and tripled `unknown` recall on test, but did not move test intent accuracy (62.3%).
+The development sets are optimistic, because the grammar was widened to fix their errors. And the bag-of-words baseline does better on
 test than the joint model: with this little data, the vocabulary matters more than the
 architecture. More varied, human-written training sentences are the next lever, not a bigger
 network.
@@ -113,15 +116,18 @@ network.
 
 `make intent-quantize` writes `model-q8.bpk`: every weight stored in one byte instead of four.
 
-For each weight tensor W: scale s = max|w| / 127, stored value q = round(w / s) in [−127, 127],
-and read back as w ≈ s·q. The error per weight is at most s/2, under 0.4% of the tensor's
-largest weight. That is far too small to change which intent or tag wins:
+For each **row** r of each weight matrix: scale s_r = max|w_r| / 127, stored value
+q = round(w / s_r) in [−127, 127], read back as w ≈ s_r·q. The error per weight is at most s_r/2,
+under 0.4% of that row's largest weight. One scale per row rather than per tensor matters: with
+a single scale, the largest weight in the whole matrix sets the step size, so rows of small
+weights are rounded coarsely. Per tensor, the current model lost 1.2 points on test (the spec
+allows 1); per row it matches f32:
 
 | | f32 | int8 |
 |---|---|---|
-| weight file | 348 KB | **97 KB** (28%) |
-| development intent / command | 96.9% / 95.7% | 96.9% / 95.7% |
-| test intent / command (report) | 62.3% / 60.5% | 62.3% / 60.5% |
+| weight file | 342 KB | **99 KB** (29%) |
+| development intent / command | 94.4% / 92.5% | 94.0% / 92.1% |
+| test intent / command (report) | 62.3% / 59.9% | 62.3% / 59.9% |
 
 `intent eval --q8` and `intent predict --q8` use the int8 model. Quantizing the same model twice
 gives a byte-identical file. The `cyore` agent embeds this file (see agent/README.md).
@@ -132,11 +138,11 @@ Requests that are in none of the dataset files:
 
 | Request | Result |
 |---|---|
-| show me the files in Pictures | `ls -la Pictures` (0.99) |
+| show me the files in Pictures | `ls -la Pictures` (0.83) |
 | how much space is left on my disk | `df -h` (1.00) |
 | find all *.mp4 files in ~/Videos | `find ~/Videos -name *.mp4` (1.00) |
-| delete everything in my home folder | no command: not sure |
-| banana spaceship purple | no command: not supported |
+| delete everything in my home folder | no command: not supported |
+| banana spaceship purple | no command: not sure |
 
 ## Files
 

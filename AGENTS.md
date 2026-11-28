@@ -30,7 +30,7 @@ It is a Cargo workspace (root `Cargo.toml`); each learning milestone is its own 
 - **`intent/`** (Stage 2, in progress): the joint intent + slot model on Burn 0.22.1 (`flex` CPU
   backend): embedding → BiGRU → intent and slot-tag heads, plus a bag-of-words baseline.
   Library (`Predictor`) for the agent, and `intent train|eval|predict`. Test intent accuracy
-  62.3% (target 70%, not yet met); see intent/README.md.
+  62.3% (target 70%, not yet met), command 59.9%; see intent/README.md.
 - **`agent/`** (Stage 3, done): the `cyore` binary. Perceive → decide → act → observe loop over
   the `intent` model; `safety.rs` is the single choke point (allowlist, blocklist, option
   injection, no shell); every command is shown and needs `y`. Tool trait, 20-entry memory,
