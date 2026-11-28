@@ -1,6 +1,6 @@
 [package]
 name = "dataset"
-version = "0.1.0"
+version = "0.5.0"
 edition = "2024"
 
 # Stage 2. serde/serde_json are used only by this generator to write and check JSON;

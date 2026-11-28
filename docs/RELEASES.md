@@ -10,7 +10,9 @@ Cyore follows **Semantic Versioning** (`vMAJOR.MINOR.PATCH`). Before `v1.0.0`, m
 
 - `MINOR`: A new milestone crate or capability (for example, MNIST, the intent classifier, the agent).
 - `PATCH`: Bug fixes, better tests, and documentation improvements.
-- `MAJOR` (`v1.0.0`): The packaged Stage 4 agent: one binary with embedded int8 weights.
+- `MAJOR` (`v1.0.0`): The packaged Stage 4 agent (one binary with embedded int8 weights) **whose model meets its accuracy targets on an independent, human-written test set**. Stage 4 shipped as `v0.5.0` because the 70% test intent target is still open.
+
+Every release is described in [CHANGELOG.md](../CHANGELOG.md).
 
 ### Creating a Release Tag
 ```bash
