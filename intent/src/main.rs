@@ -1,7 +1,7 @@
 // The `intent` command: train, evaluate, and try the Stage 2 model. See intent/README.md.
 
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Instant;
 
@@ -20,8 +20,9 @@ Train, evaluate and use the Stage 2 intent + slot model.
 
 Usage:
   intent train   [--data DIR] [--out DIR] [--epochs N] [--seed N] [--show-test]
-  intent eval    [--data DIR] [--model DIR] [--set test|dev]
-  intent predict [--model DIR] [--threshold P] <request...>
+  intent eval     [--data DIR] [--model DIR] [--set test|dev] [--q8]
+  intent predict  [--model DIR] [--threshold P] [--q8] <request...>
+  intent quantize [--data DIR] [--model DIR]
 
 Options:
   --data DIR       Command dataset directory        [default: data/commands]
@@ -31,6 +32,7 @@ Options:
   --seed N         Random seed                      [default: 42]
   --threshold P    Minimum confidence to suggest a command, 0..1  [default: 0.7]
   --set NAME       Which hand-written set eval scores: test or dev  [default: test]
+  --q8             Use the int8 model (model-q8.bpk) instead of the f32 one
   --show-test      Also report the test set after training (keep it for the final run:
                    decisions must be based on the development set only)
   --help           Show this message
@@ -56,6 +58,7 @@ struct Options {
     threshold: f32,
     set: String,
     show_test: bool,
+    q8: bool,
     words: Vec<String>,
 }
 
@@ -68,6 +71,7 @@ fn parse_options(args: &[String], allowed: &[&str]) -> Result<Options, Failure> 
         threshold: DEFAULT_THRESHOLD,
         set: "test".to_string(),
         show_test: false,
+        q8: false,
         words: Vec::new(),
     };
     let mut iter = args.iter();
@@ -81,6 +85,10 @@ fn parse_options(args: &[String], allowed: &[&str]) -> Result<Options, Failure> 
         }
         if arg == "--show-test" {
             o.show_test = true;
+            continue;
+        }
+        if arg == "--q8" {
+            o.q8 = true;
             continue;
         }
         let value = iter
@@ -257,8 +265,59 @@ fn train(o: &Options) -> Result<(), Failure> {
     Ok(())
 }
 
+fn load_predictor(o: &Options) -> Result<Predictor, Failure> {
+    if o.q8 {
+        Predictor::load_q8(&o.model)
+    } else {
+        Predictor::load(&o.model)
+    }
+    .map_err(Failure::Run)
+}
+
+/// Stage 4: write the int8 copy of the trained model and compare it with the f32 model.
+fn quantize(o: &Options) -> Result<(), Failure> {
+    let f32_model = Predictor::load(&o.model).map_err(Failure::Run)?;
+    let device = burn::prelude::Device::flex();
+    let q8_model = store::quantize(f32_model.model(), &device);
+    store::save_q8(&o.model, &q8_model).map_err(Failure::Run)?;
+    let size = |file: &str| {
+        std::fs::metadata(o.model.join(file))
+            .map(|m| m.len())
+            .unwrap_or(0)
+    };
+    let (f32_size, q8_size) = (size(store::MODEL_FILE), size(store::MODEL_Q8_FILE));
+    println!("=== int8 quantisation (symmetric, one scale per tensor) ===\n");
+    println!(
+        "  f32  {:>8} bytes  {}\n  int8 {:>8} bytes  {}  ({:.0}% of f32)",
+        f32_size,
+        o.model.join(store::MODEL_FILE).display(),
+        q8_size,
+        o.model.join(store::MODEL_Q8_FILE).display(),
+        100.0 * q8_size as f64 / f32_size.max(1) as f64
+    );
+
+    let q8 = Predictor::new(q8_model, f32_model.meta().clone()).map_err(Failure::Run)?;
+    let commands = data::load(&o.data).map_err(Failure::Run)?;
+    println!("\n                        intent    command   slot tags");
+    for (label, examples) in [
+        ("development", &commands.dev),
+        ("test (report)", &commands.test),
+    ] {
+        for (name, predictor) in [("f32 ", &f32_model), ("int8", &q8)] {
+            let r = report(predictor, examples);
+            println!(
+                "  {label:<13} {name}   {:>5.1}%    {:>5.1}%    {:>5.1}%",
+                100.0 * r.intent_accuracy,
+                100.0 * r.command_accuracy,
+                100.0 * r.slot_accuracy
+            );
+        }
+    }
+    Ok(())
+}
+
 fn eval(o: &Options) -> Result<(), Failure> {
-    let predictor = Predictor::load(&o.model).map_err(Failure::Run)?;
+    let predictor = load_predictor(o)?;
     let path = o.data.join(format!("{}.jsonl", o.set));
     let examples = data::read_examples(&path).map_err(Failure::Run)?;
     println!(
@@ -281,7 +340,7 @@ fn predict(o: &Options) -> Result<(), Failure> {
             "predict needs a request, e.g. intent predict show my files".into(),
         ));
     }
-    let predictor = Predictor::load(Path::new(&o.model)).map_err(Failure::Run)?;
+    let predictor = load_predictor(o)?;
     let text = o.words.join(" ");
     let p = predictor.predict(&text, o.threshold);
     println!("request:     {text}");
@@ -324,8 +383,13 @@ fn main() -> ExitCode {
                 )))
             }
         }),
-        "eval" => parse_options(rest, &["--data", "--model", "--set"]).and_then(|o| eval(&o)),
-        "predict" => parse_options(rest, &["--model", "--threshold"]).and_then(|o| predict(&o)),
+        "eval" => {
+            parse_options(rest, &["--data", "--model", "--set", "--q8"]).and_then(|o| eval(&o))
+        }
+        "predict" => {
+            parse_options(rest, &["--model", "--threshold", "--q8"]).and_then(|o| predict(&o))
+        }
+        "quantize" => parse_options(rest, &["--data", "--model"]).and_then(|o| quantize(&o)),
         other => Err(Failure::Usage(format!("unknown command '{other}'"))),
     };
     match result {

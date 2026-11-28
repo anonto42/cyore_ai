@@ -139,3 +139,53 @@ fn test_missing_model_hint() {
         .unwrap();
     assert!(err.contains("make intent-train"), "{err}");
 }
+
+#[test]
+fn test_int8_model_matches_and_loads_from_static_bytes() {
+    let predictor = trained_predictor();
+    let device = burn::prelude::Device::flex();
+    let q8 = store::quantize(predictor.model(), &device);
+    let dir = std::env::temp_dir().join(format!("cyore-intent-q8-{}", std::process::id()));
+    store::save(&dir, predictor.model(), predictor.meta()).unwrap();
+    store::save_q8(&dir, &q8).unwrap();
+
+    // Smaller than f32. (Only modestly here: this tiny model is mostly file metadata. The real
+    // model shrinks to about 27%, checked by `intent quantize`.)
+    let f32_size = std::fs::metadata(dir.join(store::MODEL_FILE))
+        .unwrap()
+        .len();
+    let q8_size = std::fs::metadata(dir.join(store::MODEL_Q8_FILE))
+        .unwrap()
+        .len();
+    assert!(
+        q8_size < f32_size,
+        "int8 {q8_size} bytes vs f32 {f32_size} bytes"
+    );
+
+    // Loaded from disk and from static bytes, it predicts like the f32 model.
+    let from_disk = Predictor::load_q8(&dir).unwrap();
+    let bytes: &'static [u8] = Box::leak(
+        std::fs::read(dir.join(store::MODEL_Q8_FILE))
+            .unwrap()
+            .into_boxed_slice(),
+    );
+    let meta_json = std::fs::read_to_string(dir.join(store::META_FILE)).unwrap();
+    let from_bytes = Predictor::from_static(bytes, &meta_json).unwrap();
+    for e in tiny_dataset() {
+        let f32_prediction = predictor.predict(&e.text, 0.0);
+        for q in [&from_disk, &from_bytes] {
+            let p = q.predict(&e.text, 0.0);
+            assert_eq!(p.intent, f32_prediction.intent, "{}", e.text);
+            assert_eq!(p.slots, f32_prediction.slots, "{}", e.text);
+        }
+    }
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn test_missing_q8_hint() {
+    let err = Predictor::load_q8(std::path::Path::new("/nonexistent/cyore-model"))
+        .err()
+        .unwrap();
+    assert!(err.contains("make intent-train"), "{err}");
+}

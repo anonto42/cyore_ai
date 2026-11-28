@@ -168,6 +168,20 @@ impl Predictor {
         Self::new(model, meta)
     }
 
+    /// Load the int8 model from `dir` (model-q8.bpk + meta.json).
+    pub fn load_q8(dir: &Path) -> Result<Self, String> {
+        let device = Device::flex();
+        let (model, meta) = store::load_file(dir, store::MODEL_Q8_FILE, &device)?;
+        Self::new(model, meta)
+    }
+
+    /// Load from memory that lives for the whole program (e.g. `include_bytes!`).
+    pub fn from_static(weights: &'static [u8], meta_json: &str) -> Result<Self, String> {
+        let device = Device::flex();
+        let (model, meta) = store::load_static(weights, meta_json, &device)?;
+        Self::new(model, meta)
+    }
+
     pub fn meta(&self) -> &Meta {
         &self.meta
     }
