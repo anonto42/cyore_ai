@@ -10,6 +10,17 @@ codegen-units = 1
 strip = true
 panic = "abort"
 
+# gemm (Burn's CPU matrix kernels) only compiles for ARM64 when optimised: unoptimised, its
+# half-precision helpers are emitted outside the functions that enable the `fp16` CPU feature,
+# and the assembler rejects them ("instruction requires: fullfp16"). Debug and test builds
+# (`cargo test` in the release workflow's ARM64 job) therefore always optimise these crates.
+# Enabling `fp16` globally instead would make binaries require it, which a Raspberry Pi 4 lacks.
+[profile.dev.package.gemm-f16]
+opt-level = 3
+
+[profile.dev.package.gemm-common]
+opt-level = 3
+
 # Stage 4: the shipped `cyore` binary is built with this profile (`make release`,
 # `make cross-arm64`, release workflow). opt-level "z" made it 41% smaller (4.20 → 2.46 MiB)
 # with the same speed and output; training (`intent`, `mnist`) keeps opt-level 3 in `release`.
