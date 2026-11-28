@@ -2,14 +2,17 @@
 // shows it, and runs it only if you answer "y". See agent/README.md.
 
 use std::io::{self, IsTerminal, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
 
 use agent::agent::{Agent, Settings};
+use agent::embedded::{self, ModelSource};
 use agent::runner::ProcessRunner;
 use agent::tools::ModelInterpreter;
 use intent::predict::{DEFAULT_THRESHOLD, Predictor};
+
+const DEFAULT_DIR: &str = "data/models/intent";
 
 const USAGE: &str = "\
 Cyore: plain English in, terminal commands out. Nothing runs until you answer \"y\".
@@ -19,14 +22,15 @@ Usage:
   cyore [OPTIONS] <request...> one request, then exit
 
 Options:
-  --model DIR        Trained model directory              [default: data/models/intent]
+  --model DIR        Load the model from this directory instead of the one built in
+                     (without a built-in model: data/models/intent)
   --threshold P      Minimum model confidence, 0..1        [default: 0.7]
   --timeout SECS     Kill a command after this many seconds [default: 10]
   --dry-run          Show commands but never run them
   --help             Show this message";
 
 struct Options {
-    model: PathBuf,
+    model: Option<PathBuf>,
     threshold: f32,
     timeout: u64,
     dry_run: bool,
@@ -35,7 +39,7 @@ struct Options {
 
 fn parse(args: &[String]) -> Result<Option<Options>, String> {
     let mut o = Options {
-        model: PathBuf::from("data/models/intent"),
+        model: None,
         threshold: DEFAULT_THRESHOLD,
         timeout: 10,
         dry_run: false,
@@ -50,7 +54,7 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
                 let value = iter.next().ok_or_else(|| format!("{arg} needs a value"))?;
                 let bad = || format!("{arg}: invalid value '{value}'");
                 match arg.as_str() {
-                    "--model" => o.model = PathBuf::from(value),
+                    "--model" => o.model = Some(PathBuf::from(value)),
                     "--threshold" => {
                         o.threshold = value
                             .parse()
@@ -73,7 +77,12 @@ fn main() -> ExitCode {
     let options = match parse(&args) {
         Ok(Some(o)) => o,
         Ok(None) => {
-            println!("{USAGE}");
+            let source =
+                embedded::choose(None, embedded::embedded().is_some(), Path::new(DEFAULT_DIR));
+            println!(
+                "{USAGE}\n\nThis build uses: {}",
+                embedded::describe(&source)
+            );
             return ExitCode::SUCCESS;
         }
         Err(message) => {
@@ -81,7 +90,18 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let predictor = match Predictor::load(&options.model) {
+    // Stage 4: --model DIR, else the int8 model built into this binary, else the default dir.
+    let source = embedded::choose(
+        options.model.as_deref(),
+        embedded::embedded().is_some(),
+        Path::new(DEFAULT_DIR),
+    );
+    let loaded = match (&source, embedded::embedded()) {
+        (ModelSource::Embedded, Some((weights, meta))) => Predictor::from_static(weights, meta),
+        (ModelSource::Dir(dir), _) => Predictor::load(dir),
+        (ModelSource::Embedded, None) => Err("no embedded model".to_string()),
+    };
+    let predictor = match loaded {
         Ok(p) => p,
         Err(message) => {
             eprintln!("error: {message}");
@@ -108,7 +128,8 @@ fn main() -> ExitCode {
         if interactive {
             let _ = writeln!(
                 out,
-                "Cyore: tell me what you want to do (`help` for tools, `quit` to leave).{}",
+                "Cyore: tell me what you want to do (`help` for tools, `quit` to leave). Using the {}.{}",
+                embedded::describe(&source),
                 if options.dry_run {
                     " Dry run: nothing will be executed."
                 } else {

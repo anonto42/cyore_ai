@@ -13,7 +13,7 @@ Last updated: 2026-11-28
 | 2 | Burn intent + slot model (`intent/`) | Built; test intent 62.3% / command 60.5% (target 70% / 60%): intent target not met. ~18 s training, 4.8 MB binary, 356 KB weights |
 | 2 | Tiny seq2seq transformer | Not started |
 | 3 | Rust agent `cyore` (`agent/`) | Done — confirm-before-run loop, safety choke point, tools, memory, multi-step; 4.1 MiB binary, 10.7 MiB peak RSS (one-shot dry run, getrusage) |
-| 4 | int8 quantisation, `include_bytes!` weights, cross-compile | Release profile already set in root `Cargo.toml` |
+| 4 | int8 quantisation, `include_bytes!` weights, cross-compile | Done — int8 97 KB (28% of f32, identical dev/test metrics); one-file `cyore` 2.46 MiB (`dist`, opt-level z), 10.2 MiB peak RSS, ~6 ms per request; static musl x86_64 4.31 MiB (release) and ARM64 1.98 MiB (dist) |
 
 ## `xor` design
 
@@ -68,6 +68,8 @@ Last updated: 2026-11-28
   independent. A test set written by someone else is the stronger check.
 - At threshold 0.7: 71% of test requests are answered, 77% of those correctly. 10/12
   out-of-scope test requests get no command; the 2 that slip through map to harmless `pwd`/`lsblk`.
+- Open OpenSpec changes awaiting the owner: `add-intent-model` (70% target decision), `add-agent`
+  and `add-packaging` (review, then archive in that order).
 - `add-intent-model` is still open: its 70% test-intent target was missed, and lowering it needs
   the owner's explicit decision.
 - Next lever: more varied *human-written* training sentences (or paraphrase augmentation), not
@@ -85,6 +87,21 @@ Last updated: 2026-11-28
   declined step does not.
 - Tests inject a fake `Interpreter` and a recording `Runner`; "nothing runs without y" is tested
   with seven non-yes answers plus end of input.
+
+## Stage 4 packaging
+
+- `intent quantize`: Burn `Quantizer` (MinMax, `QuantValue::Q8S`, per tensor) → `model-q8.bpk`;
+  deterministic (byte-identical on re-run).
+- `agent/build.rs` copies `model-q8.bpk` + `meta.json` into OUT_DIR (empty placeholders if
+  missing); `embedded.rs` uses `include_bytes!`/`include_str!` and `Predictor::from_static`.
+  Selection: `--model DIR` > embedded > `data/models/intent`.
+- `[profile.dist]` (inherits release, opt-level "z"): cyore 4.20 → 2.46 MiB, same speed (5.5 vs
+  5.7 ms) and output. Training keeps opt-level 3.
+- Cross: `rust-lld` links static musl for aarch64 and x86_64 without a C cross toolchain. The
+  ARM64 binary is verified by `file` only (no emulator here); CI's ARM runner runs its tests.
+- Release workflow: tests (no model) → dataset → train → quantize → build `BINS`
+  (`package:binary:profile`).
+- `make release` from scratch takes ~83 s.
 
 ## Known follow-ups
 

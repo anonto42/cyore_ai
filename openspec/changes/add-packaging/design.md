@@ -38,6 +38,7 @@ For a weight tensor W, let m = max |wᵢ| (min/max calibration). The scale is s 
 5. **Release workflow:** add a "Train and quantize the model" step before the build: `make commands-data`, `cargo run --release -p intent -- train`, `cargo run --release -p intent -- quantize`. Replace the plain `BINS` list with package-to-binary pairs (`xor:xor mnist:mnist agent:cyore`), because the `agent` package builds the `cyore` binary. Archives then contain `cyore` with the model inside. Training runs per job: a few seconds, and it avoids passing artefacts between jobs. Each platform gets the same seeded data and training; tiny floating-point differences across CPUs are acceptable, and each job reports its own numbers in its log.
 
 6. **`opt-level` comparison:** build `cyore` with `CARGO_PROFILE_RELEASE_OPT_LEVEL=z` and compare size, one-shot latency and test metrics with `opt-level = 3`. Keep 3 unless "z" saves at least 25% of the size with no visible slowdown. Record the numbers either way.
+   **Result:** "z" gave 2.46 MiB versus 4.20 MiB (−41%), with a median one-shot time of 5.7 ms versus 5.5 ms and identical output, so it is adopted. Changing the shared `release` profile would also slow down training (`intent`, `mnist`), so a separate `[profile.dist]` (inherits `release`, `opt-level = "z"`) is used for the shipped `cyore` only: by `make release`, `make cross-arm64`, and the workflow (`BINS` entries became `package:binary:profile`). `make release` therefore writes `target/dist/cyore`.
 
 ## Risks / Trade-offs
 

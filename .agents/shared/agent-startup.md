@@ -38,7 +38,9 @@ When starting any new task, bug fix, or feature in this repository, follow these
      blocklist, option injection, `~` expansion), `runner.rs` (`Runner` trait, `ProcessRunner`:
      no shell, timeout, caps), `steps.rs`, `memory.rs`, `tools.rs` (`Tool` trait, built-ins,
      `ModelTool`/`Interpreter`), `agent.rs` (the loop; IO, model and runner are injected for
-     tests), `main.rs` (binary `cyore`). Any change here must keep "nothing runs without y".
+     tests), `main.rs` (binary `cyore`), `embedded.rs` + `build.rs` (int8 model built in when
+     `data/models/intent/model-q8.bpk` exists at build time; `CYORE_MODEL_DIR` overrides).
+     Any change here must keep "nothing runs without y".
 5. **Run Verification Before & After:**
    Always run `make check` (`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`,
    release build) before finishing any edit.

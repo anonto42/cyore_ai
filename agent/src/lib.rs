@@ -3,6 +3,7 @@
 // See agent/README.md and the add-agent design.
 
 pub mod agent;
+pub mod embedded;
 pub mod memory;
 pub mod runner;
 pub mod safety;

@@ -13,7 +13,7 @@ MNIST_FILES := train-images-idx3-ubyte train-labels-idx1-ubyte t10k-images-idx3-
 # Extra options for `make mnist`, e.g. make mnist ARGS="--epochs 2"
 ARGS ?=
 
-.PHONY: help build run dev test bench lint fmt fmt-check clean check spec size docker-build docker-run mnist-data mnist commands-data intent-train intent-eval intent-predict agent agent-run
+.PHONY: help build run dev test bench lint fmt fmt-check clean check spec size docker-build docker-run mnist-data mnist commands-data intent-train intent-eval intent-predict intent-quantize agent agent-run release cross-arm64
 
 help:
 	@printf '%s\n' 'Cyore commands (CRATE=$(CRATE); override with CRATE=<member>):'
@@ -33,8 +33,11 @@ help:
 	@printf '%s\n' '  make intent-train  Train the intent + slot model into data/models/intent/'
 	@printf '%s\n' '  make intent-eval   Evaluate the trained model on the hand-written test set'
 	@printf '%s\n' '  make intent-predict ARGS="show me the files"  Turn one request into a command'
+	@printf '%s\n' '  make intent-quantize Write the int8 copy of the model and compare its accuracy'
 	@printf '%s\n' '  make agent         Build the cyore agent (release): ./target/release/cyore'
 	@printf '%s\n' '  make agent-run     Run cyore; one request via ARGS="show me the files", else interactive'
+	@printf '%s\n' '  make release       Dataset → train → int8 → one-file ./target/dist/cyore, model built in'
+	@printf '%s\n' '  make cross-arm64   Cross-compile a static Linux ARM64 cyore (e.g. Raspberry Pi)'
 	@printf '%s\n' '  make docker-build  Build the container image for CRATE'
 	@printf '%s\n' '  make docker-run    Run the container image for CRATE'
 	@printf '%s\n' '  make clean         Remove build artifacts'
@@ -106,12 +109,29 @@ intent-eval:
 intent-predict:
 	@$(CARGO) run --release -q -p intent -- predict $(ARGS)
 
+intent-quantize:
+	@$(CARGO) run --release -q -p intent -- quantize $(ARGS)
+
 agent:
 	@$(CARGO) build --release -p agent
 	@printf '%s\n' 'Build complete: ./target/release/cyore'
 
 agent-run:
 	@$(CARGO) run --release -q -p agent -- $(ARGS)
+
+# Stage 4: everything from scratch into one file. The build script embeds model-q8.bpk.
+release: commands-data intent-train intent-quantize
+	@$(CARGO) build --profile dist -p agent
+	@printf 'Single-file binary: ./target/dist/cyore (%s bytes)\n' "$$(wc -c < target/dist/cyore)"
+	@./target/dist/cyore --help | tail -n 1
+
+# Static ARM64 Linux binary without a cross C toolchain: musl ships its own C runtime objects and
+# Rust's bundled linker (rust-lld) links them. Needs `rustup target add aarch64-unknown-linux-musl`.
+ARM64_TARGET := aarch64-unknown-linux-musl
+cross-arm64:
+	@rustup target list --installed 2>/dev/null | grep -qx '$(ARM64_TARGET)' || { printf '%s\n' 'Missing target: run rustup target add $(ARM64_TARGET)'; exit 1; }
+	@CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=rust-lld $(CARGO) build --profile dist -p agent --target $(ARM64_TARGET)
+	@file target/$(ARM64_TARGET)/dist/cyore
 
 docker-build:
 	@docker build --build-arg CRATE=$(CRATE) -t $(IMAGE):local .

@@ -31,7 +31,7 @@ Pushing a tag that matches `v*.*.*` starts `.github/workflows/release.yml`.
 
 ## 2. What the Release Workflow Builds
 
-Each target runs on its own native GitHub runner. The workflow runs the full test suite, builds every binary listed in `BINS` with the shared release profile, and packages it together with `README.md` and `LICENSE`:
+Each target runs on its own native GitHub runner. The workflow runs the full test suite (without a model, which proves a fresh clone builds), then generates the seeded dataset, trains and quantizes the model, and builds every binary listed in `BINS` (`package:binary:profile`). `cyore` uses the size-optimised `dist` profile and has the int8 model built in. Each archive also contains `README.md` and `LICENSE`:
 
 | Target | Runner | Archive |
 |---|---|---|
@@ -42,7 +42,11 @@ Each target runs on its own native GitHub runner. The workflow runs the full tes
 
 A final job collects every archive, writes `SHA256SUMS.txt`, and publishes a GitHub Release with auto-generated release notes.
 
-To ship a new milestone binary, add its crate name to `BINS` at the top of the workflow.
+To ship a new milestone binary, add a `package:binary:profile` entry to `BINS` at the top of the workflow.
+
+To build the same single-file `cyore` locally: `make release` (host) or `make cross-arm64` (static Linux ARM64, linked by `rust-lld` with no cross C toolchain).
+
+On Windows `cyore` builds and runs, but the commands it knows (`ls`, `df`, …) are Unix tools, so most report "could not start".
 
 ---
 
@@ -59,13 +63,16 @@ make docker-run CRATE=xor
 
 ## 4. Footprint Budget
 
-Stage 4 targets a **5–30 MB** binary that uses **under 100 MB of RAM**. Check the size of any release build with:
+Stage 4 targets a **5–30 MB** binary that uses **under 100 MB of RAM**. The shipped `cyore` comes in well under it:
 
-```bash
-make size CRATE=xor
-```
+| Build | Size | Peak RAM | One request (load + answer) |
+|---|---|---|---|
+| `cyore`, `release` profile (`opt-level = 3`), x86_64 | 4.20 MiB | 10.7 MiB | 5.5 ms |
+| `cyore`, `dist` profile (`opt-level = "z"`), x86_64 | **2.46 MiB** | **10.2 MiB** | 5.7 ms |
+| `cyore`, `dist`, static musl ARM64 | 1.98 MiB | not measured (no ARM machine) | not measured |
+| int8 model inside it | 97 KB (f32: 348 KB) | | |
 
-The release profile in the root `Cargo.toml` already uses `lto = true`, `codegen-units = 1`, `strip = true` and `panic = "abort"`. Switch `opt-level` to `"z"` when size matters more than speed.
+The release profile in the root `Cargo.toml` uses `lto = true`, `codegen-units = 1`, `strip = true` and `panic = "abort"`. The `dist` profile inherits it with `opt-level = "z"`: 41% smaller with the same speed, so it is used for `cyore`. Training crates keep `opt-level = 3`. Check any build with `make size CRATE=xor`.
 
 ---
 

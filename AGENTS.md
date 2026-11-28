@@ -35,7 +35,10 @@ It is a Cargo workspace (root `Cargo.toml`); each learning milestone is its own 
   the `intent` model; `safety.rs` is the single choke point (allowlist, blocklist, option
   injection, no shell); every command is shown and needs `y`. Tool trait, 20-entry memory,
   multi-step requests, dry run.
-- Planned: Stage 4 packaging (int8 weights, `include_bytes!`, cross-compilation).
+- **Stage 4** (done, in `intent/` + `agent/`): `intent quantize` → int8 `model-q8.bpk`;
+  `agent/build.rs` embeds it in `cyore` (empty placeholder if absent, so fresh clones build);
+  `make release` → one-file `target/dist/cyore` (2.46 MiB, `dist` profile = `opt-level "z"`);
+  `make cross-arm64` → static ARM64 via `rust-lld`.
 
 The owner is learning; prefer clear, well-commented code that explains *why* over clever code.
 

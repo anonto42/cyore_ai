@@ -128,10 +128,30 @@ command; you confirm again), `quit`/`exit`. Then `ModelTool`, which claims every
 tool can only *propose* a command: the agent still runs it through the safety check and asks
 you, so a new tool cannot weaken the rules.
 
-## Size
+## One file (Stage 4)
 
-The release binary is 4.1 MiB, the model 356 KB, and peak memory for a one-shot request is
-10.7 MiB. The Stage 4 targets are ≤ 30 MB and < 100 MB.
+`make release` builds `./target/dist/cyore` with the int8 model built in. `build.rs` copies
+`data/models/intent/model-q8.bpk` and `meta.json` into the build, and `src/embedded.rs` loads
+them with `include_bytes!` and Burn's zero-copy `BurnpackStore::from_static`. Copy that one file
+anywhere and it works. The banner and `--help` say which model is in use:
+
+```text
+$ ./target/dist/cyore --help | tail -1
+This build uses: embedded int8 model (95 KB)
+```
+
+Which model is used: `--model DIR` first, otherwise the embedded model, otherwise
+`data/models/intent` on disk. Without a trained model at build time, `build.rs` embeds nothing
+and the build still succeeds (fresh clones, CI tests). `CYORE_MODEL_DIR` picks another model
+directory to embed.
+
+| | Size | Peak RAM | One request |
+|---|---|---|---|
+| `./target/dist/cyore` (`opt-level = "z"`) | 2.46 MiB | 10.2 MiB | 6 ms |
+| `./target/release/cyore` (`opt-level = 3`) | 4.20 MiB | 10.7 MiB | 5.5 ms |
+| static ARM64 (`make cross-arm64`) | 1.98 MiB | | |
+
+The Stage 4 targets are ≤ 30 MB and < 100 MB.
 
 ## Limits
 

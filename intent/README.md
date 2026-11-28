@@ -109,6 +109,23 @@ test than the joint model: with this little data, the vocabulary matters more th
 architecture. More varied, human-written training sentences are the next lever, not a bigger
 network.
 
+## int8 (Stage 4)
+
+`make intent-quantize` writes `model-q8.bpk`: every weight stored in one byte instead of four.
+
+For each weight tensor W: scale s = max|w| / 127, stored value q = round(w / s) in [−127, 127],
+and read back as w ≈ s·q. The error per weight is at most s/2, under 0.4% of the tensor's
+largest weight. That is far too small to change which intent or tag wins:
+
+| | f32 | int8 |
+|---|---|---|
+| weight file | 348 KB | **97 KB** (28%) |
+| development intent / command | 96.9% / 95.7% | 96.9% / 95.7% |
+| test intent / command (report) | 62.3% / 60.5% | 62.3% / 60.5% |
+
+`intent eval --q8` and `intent predict --q8` use the int8 model. Quantizing the same model twice
+gives a byte-identical file. The `cyore` agent embeds this file (see agent/README.md).
+
 ## Example predictions
 
 Requests that are in none of the dataset files:
@@ -130,7 +147,7 @@ Requests that are in none of the dataset files:
 | `batch.rs` | equal-length batches (no padding), word dropout, tensors |
 | `model.rs` | `JointModel` (embedding → BiGRU → two heads), `BagOfWords` |
 | `train.rs` | training loop, development-based epoch selection, early stopping |
-| `store.rs` | save and load `model.bpk` + `meta.json` |
+| `store.rs` | save and load `model.bpk` / `model-q8.bpk` + `meta.json`; int8 `quantize`; load from static bytes |
 | `predict.rs` | `Predictor` and the decision rules (`decode`) |
 | `metrics.rs` | accuracy, slot and command accuracy, unknown precision/recall, threshold table |
 | `main.rs` | the `intent` command |

@@ -81,7 +81,7 @@ The project grows in four stages. It starts with a neural network written by han
 | 2 | Burn intent classifier + slot model | `intent/` | ✅ Built: test intent 62.3%, command 60.5% (original 70% intent target missed) |
 | 2 | Tiny seq2seq transformer | — | ⏳ Not started |
 | 3 | Rust agent with confirm-before-run and safety rules | `agent/` | ✅ Done: `cyore`, 4.1 MiB binary, 10.7 MiB peak RAM |
-| 4 | int8 quantisation, embedded weights, cross-compile | — | 🧩 Release profile already set in root `Cargo.toml` |
+| 4 | int8 quantisation, embedded weights, cross-compile | `intent/`, `agent/` | ✅ Done: one-file `cyore` 2.46 MiB (ARM64 1.98 MiB), int8 model 97 KB, 10.2 MiB peak RAM, 6 ms per request |
 
 ---
 
@@ -213,7 +213,16 @@ make agent                                 # builds ./target/release/cyore
 
 See the [Model Guide](intent/README.md) and the [Agent Guide](agent/README.md).
 
-### 7. Run in a Container
+### 7. Build the Single-File Binary (Stage 4)
+
+```bash
+make release        # dataset → train → int8 → ./target/dist/cyore with the model built in (~1.5 min)
+make cross-arm64    # static Linux ARM64 build (Raspberry Pi); needs: rustup target add aarch64-unknown-linux-musl
+```
+
+`./target/dist/cyore` needs no other files: copy it to another Linux machine and run it.
+
+### 8. Run in a Container
 
 ```bash
 # Build a static musl binary into an empty FROM scratch image, then run it
@@ -281,6 +290,9 @@ All targets act on `CRATE` (default: `xor`). Override it with `make <target> CRA
 | `make intent-predict` | Turns one request into a command: `ARGS="show me the files"` |
 | `make agent` | Builds the `cyore` agent: `./target/release/cyore` |
 | `make agent-run` | Runs `cyore`; one request via `ARGS="..."`, otherwise interactive |
+| `make intent-quantize` | Writes the int8 copy of the model (`model-q8.bpk`) and compares its accuracy with f32 |
+| `make release` | Dataset → train → int8 → single-file `./target/dist/cyore` with the model built in |
+| `make cross-arm64` | Cross-compiles a static Linux ARM64 `cyore` with Rust's own linker |
 | `make docker-build` | Builds the container image for `CRATE` |
 | `make docker-run` | Runs the container image for `CRATE` |
 | `make clean` | Removes build artifacts |

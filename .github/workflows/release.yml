@@ -9,8 +9,9 @@ permissions:
   contents: write
 
 env:
-  # Workspace binaries shipped in every archive. Add a crate here when its milestone lands.
-  BINS: xor mnist
+  # Binaries shipped in every archive, as package:binary:profile. The agent package builds
+  # `cyore` with the size-optimised `dist` profile (root Cargo.toml). Add an entry per milestone.
+  BINS: xor:xor:release mnist:mnist:release agent:cyore:dist
 
 jobs:
   build:
@@ -49,11 +50,21 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --locked
 
+      # Stage 4: cyore embeds the int8 model at build time (agent/build.rs), so produce it first.
+      # Seeded dataset + training, so every release is reproducible from source.
+      - name: Train and quantize the model
+        shell: bash
+        run: |
+          cargo run --release --locked -p dataset
+          cargo run --release --locked -p intent -- train
+          cargo run --release --locked -p intent -- quantize
+
       - name: Build release binaries
         shell: bash
         run: |
-          for bin in $BINS; do
-            cargo build --release --locked --target "$TARGET" -p "$bin"
+          for entry in $BINS; do
+            IFS=: read -r package bin profile <<< "$entry"
+            cargo build --profile "$profile" --locked --target "$TARGET" -p "$package"
           done
 
       - name: Package binaries
@@ -63,8 +74,9 @@ jobs:
           ext=""
           if [[ "$TARGET" == *windows* ]]; then ext=".exe"; fi
           mkdir -p "dist/$name"
-          for bin in $BINS; do
-            cp "target/$TARGET/release/$bin$ext" "dist/$name/"
+          for entry in $BINS; do
+            IFS=: read -r package bin profile <<< "$entry"
+            cp "target/$TARGET/$profile/$bin$ext" "dist/$name/"
           done
           cp README.md LICENSE "dist/$name/"
           cd dist
