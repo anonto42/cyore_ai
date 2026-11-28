@@ -55,7 +55,11 @@ pub struct Prepared {
     pub name: &'static str,
     pub template: Option<Template>,
     pub phrasings: Vec<Phrasing>,
+    /// For each grammar line, the indices into `phrasings` it produced. Sampling picks a line
+    /// first, so a short line ("ping {host}") is not drowned out by a line with 48 expansions.
+    pub lines: Vec<Vec<usize>>,
     pub tests: Vec<String>,
+    pub dev: Vec<String>,
 }
 
 /// The slot names used in a sentence, in order. Every token touching a brace must be exactly
@@ -222,16 +226,22 @@ pub fn prepare(catalog: &Catalog) -> Result<Vec<Prepared>, Vec<String>> {
 
         // Phrasings: expand every line, dedupe, check slots, count.
         let mut phrasings: Vec<Phrasing> = Vec::new();
+        let mut lines: Vec<Vec<usize>> = Vec::new();
         let mut distinct = BTreeSet::new();
         for line in intent.phrasings {
             let (kind, body) = split_kind(line);
             match grammar::expand(body) {
                 Ok(texts) => {
+                    let mut indices = Vec::new();
                     for text in texts {
                         if distinct.insert(text.to_lowercase()) {
                             check_slots(name, &text, template.as_ref(), catalog.pools, &mut errors);
+                            indices.push(phrasings.len());
                             phrasings.push(Phrasing { kind, text });
                         }
+                    }
+                    if !indices.is_empty() {
+                        lines.push(indices);
                     }
                 }
                 Err(e) => errors.push(format!("{name}: {e}")),
@@ -244,27 +254,37 @@ pub fn prepare(catalog: &Catalog) -> Result<Vec<Prepared>, Vec<String>> {
             ));
         }
 
-        // Hand-written tests
-        let min_tests = if is_unknown {
+        // Hand-written test and development sentences: same minimums, same slot rules.
+        let min_sentences = if is_unknown {
             MIN_UNKNOWN_TESTS
         } else {
             MIN_TESTS
         };
-        if intent.tests.len() < min_tests {
-            errors.push(format!(
-                "{name}: only {} test sentences, need at least {min_tests}",
-                intent.tests.len()
-            ));
-        }
-        for test in intent.tests {
-            check_slots(name, test, template.as_ref(), catalog.pools, &mut errors);
+        for (kind, sentences) in [("test", intent.tests), ("development", intent.dev)] {
+            if sentences.len() < min_sentences {
+                errors.push(format!(
+                    "{name}: only {} {kind} sentences, need at least {min_sentences}",
+                    sentences.len()
+                ));
+            }
+            for sentence in sentences {
+                check_slots(
+                    name,
+                    sentence,
+                    template.as_ref(),
+                    catalog.pools,
+                    &mut errors,
+                );
+            }
         }
 
         prepared.push(Prepared {
             name,
             template,
             phrasings,
+            lines,
             tests: intent.tests.iter().map(|t| t.to_string()).collect(),
+            dev: intent.dev.iter().map(|t| t.to_string()).collect(),
         });
     }
 
@@ -290,28 +310,53 @@ pub fn prepare(catalog: &Catalog) -> Result<Vec<Prepared>, Vec<String>> {
     }
 }
 
-/// The test set must measure generalisation: no test text in training, and no test slot value
-/// seen as a slot value in training.
-pub fn check_disjoint(train: &[Example], test: &[Example]) -> Result<(), Vec<String>> {
+/// Held-out sets must measure generalisation: no held-out text in training, and no held-out
+/// slot value seen as a slot value in training. `label` names the set in messages.
+pub fn check_disjoint(
+    train: &[Example],
+    held_out: &[Example],
+    label: &str,
+) -> Result<(), Vec<String>> {
     let train_texts: BTreeSet<String> = train.iter().map(|e| e.text.to_lowercase()).collect();
     let train_values: BTreeSet<&String> = train.iter().flat_map(|e| e.slots.values()).collect();
     let mut errors = Vec::new();
-    for example in test {
+    for example in held_out {
         if train_texts.contains(&example.text.to_lowercase()) {
             errors.push(format!(
-                "{}: test sentence \"{}\" also appears in training",
+                "{}: {label} sentence \"{}\" also appears in training",
                 example.intent, example.text
             ));
         }
         for value in example.slots.values() {
             if train_values.contains(value) {
                 errors.push(format!(
-                    "{}: test slot value \"{value}\" also appears in training",
+                    "{}: {label} slot value \"{value}\" also appears in training",
                     example.intent
                 ));
             }
         }
     }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+/// The development and test sets must not share a sentence (lowercased), or tuning on the
+/// development set would also tune on the test set.
+pub fn check_dev_test_disjoint(dev: &[Example], test: &[Example]) -> Result<(), Vec<String>> {
+    let test_texts: BTreeSet<String> = test.iter().map(|e| e.text.to_lowercase()).collect();
+    let errors: Vec<String> = dev
+        .iter()
+        .filter(|e| test_texts.contains(&e.text.to_lowercase()))
+        .map(|e| {
+            format!(
+                "{}: \"{}\" is in both the development and test sets",
+                e.intent, e.text
+            )
+        })
+        .collect();
     if errors.is_empty() {
         Ok(())
     } else {
@@ -372,6 +417,7 @@ mod tests {
             command: Some("ls"),
             phrasings: &["(show|list) files"],
             tests: &["x", "y", "z"],
+            dev: &["d1", "d2", "d3"],
         }];
         assert!(has(&errors_for(INTENTS), "a: only 2 distinct phrasings"));
     }
@@ -383,6 +429,7 @@ mod tests {
             command: Some("curl example.com"),
             phrasings: &[TWENTY],
             tests: &["x", "y", "z"],
+            dev: &["d1", "d2", "d3"],
         }];
         let errors = errors_for(INTENTS);
         assert!(has(&errors, "a: program 'curl'"));
@@ -396,6 +443,7 @@ mod tests {
             command: Some("ls ; rm -rf /"),
             phrasings: &[TWENTY],
             tests: &["x", "y", "z"],
+            dev: &["d1", "d2", "d3"],
         }];
         let errors = errors_for(INTENTS);
         assert!(has(&errors, "matches the safety blocklist"));
@@ -409,6 +457,7 @@ mod tests {
             command: Some("ls | cat"),
             phrasings: &[TWENTY],
             tests: &["x", "y", "z"],
+            dev: &["d1", "d2", "d3"],
         }];
         assert!(has(
             &errors_for(INTENTS),
@@ -423,6 +472,7 @@ mod tests {
             command: Some("ls {dir}"),
             phrasings: &[TWENTY],
             tests: &["x {dir}", "y {dir}", "z {dir}"],
+            dev: &["d1", "d2", "d3"],
         }];
         assert!(has(&errors_for(INTENTS), "missing the required slot {dir}"));
     }
@@ -434,6 +484,7 @@ mod tests {
             command: Some("ls"),
             phrasings: &[TWENTY, "do: show {file}"],
             tests: &["x", "y", "z"],
+            dev: &["d1", "d2", "d3"],
         }];
         let errors = errors_for(INTENTS);
         assert!(has(&errors, "which the command does not have"));
@@ -447,6 +498,7 @@ mod tests {
             command: Some("ls {dir?}"),
             phrasings: &[TWENTY, "do: show {dir}'s files"],
             tests: &["x", "y", "z"],
+            dev: &["d1", "d2", "d3"],
         }];
         assert!(has(&errors_for(INTENTS), "must be a whole word"));
     }
@@ -459,17 +511,49 @@ mod tests {
                 command: Some("ls"),
                 phrasings: &[TWENTY],
                 tests: &["x"],
+                dev: &["d1", "d2", "d3"],
             },
             Intent {
                 name: "a",
                 command: Some("cat"),
                 phrasings: &[TWENTY],
                 tests: &["x", "y", "z"],
+                dev: &["d1", "d2", "d3"],
             },
         ];
         let errors = errors_for(INTENTS);
         assert!(has(&errors, "a: only 1 test sentences"));
+        assert!(!has(&errors, "development sentences"));
         assert!(has(&errors, "a: duplicate intent name"));
+    }
+
+    #[test]
+    fn test_too_few_dev_sentences() {
+        const INTENTS: &[Intent] = &[Intent {
+            name: "a",
+            command: Some("ls"),
+            phrasings: &[TWENTY],
+            tests: &["x", "y", "z"],
+            dev: &["d"],
+        }];
+        assert!(has(&errors_for(INTENTS), "a: only 1 development sentences"));
+    }
+
+    #[test]
+    fn test_dev_and_test_must_not_share_sentences() {
+        use crate::generate::Example;
+        let example = |text: &str| Example {
+            text: text.to_string(),
+            tokens: Vec::new(),
+            tags: Vec::new(),
+            intent: "a".to_string(),
+            slots: Default::default(),
+            command: None,
+        };
+        let errors = check_dev_test_disjoint(&[example("Show Files")], &[example("show files")])
+            .unwrap_err();
+        assert!(has(&errors, "in both the development and test sets"));
+        assert!(check_dev_test_disjoint(&[example("a")], &[example("b")]).is_ok());
     }
 
     #[test]
@@ -480,12 +564,14 @@ mod tests {
                 command: Some("ls"),
                 phrasings: &[TWENTY],
                 tests: &["x", "y", "z"],
+                dev: &["d1", "d2", "d3"],
             },
             Intent {
                 name: "b",
                 command: Some("cat"),
                 phrasings: &[TWENTY],
                 tests: &["x", "y", "z"],
+                dev: &["d1", "d2", "d3"],
             },
         ];
         assert!(has(&errors_for(INTENTS), "is also a phrasing of a"));
@@ -498,6 +584,7 @@ mod tests {
             command: Some("ls"),
             phrasings: &[TWENTY],
             tests: &["x", "y", "z"],
+            dev: &["d1", "d2", "d3"],
         }];
         let errors = errors_for(INTENTS);
         assert!(has(&errors, "need at least 50"));
@@ -511,6 +598,7 @@ mod tests {
             command: Some("ls"),
             phrasings: &["do: (show|list files"],
             tests: &["x", "y", "z"],
+            dev: &["d1", "d2", "d3"],
         }];
         assert!(has(&errors_for(INTENTS), "a: grammar error"));
     }

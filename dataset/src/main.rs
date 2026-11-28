@@ -1,22 +1,23 @@
 // Generate the Stage 2 command dataset: validate the catalog, expand it into training and
-// test examples, and write them to JSON Lines files. See dataset/README.md.
+// development and test examples, and write them to JSON Lines files. See dataset/README.md.
 
 mod catalog;
 mod generate;
 mod grammar;
 mod random;
-mod template;
-mod tokenize;
 mod validate;
+
+// Shared with other crates through the library (src/lib.rs).
+use dataset::{template, tokenize};
 
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use generate::{Example, generate_test, generate_train, intent_infos};
+use generate::{Example, generate_dev, generate_test, generate_train, intent_infos};
 use random::Rng;
-use validate::{check_disjoint, counts_per_intent, prepare};
+use validate::{check_dev_test_disjoint, check_disjoint, counts_per_intent, prepare};
 
 const USAGE: &str = "\
 Generate the command dataset (intents, slots, phrasings) for the Stage 2 models.
@@ -26,7 +27,7 @@ Usage: dataset [OPTIONS]
 Options:
   --out <DIR>         Output directory                    [default: data/commands]
   --seed <N>          Random seed (same seed = same files) [default: 42]
-  --per-intent <N>    Training examples per intent        [default: 80]
+  --per-intent <N>    Training examples per intent        [default: 150]
   --help              Show this message";
 
 #[derive(Debug, PartialEq)]
@@ -41,7 +42,7 @@ fn parse_args(args: &[String]) -> Result<Option<Config>, String> {
     let mut config = Config {
         out: PathBuf::from("data/commands"),
         seed: 42,
-        per_intent: 80,
+        per_intent: 150,
     };
     let mut iter = args.iter();
     while let Some(flag) = iter.next() {
@@ -98,24 +99,46 @@ fn run(config: &Config) -> Result<(), Vec<String>> {
     let catalog = catalog::catalog();
     let intents = prepare(&catalog)?;
 
-    // Separate generators so adding test sentences never changes the training data.
+    // Separate generators so adding held-out sentences never changes the training data
+    // (and adding development sentences never changes the test data).
     let mut train_rng = Rng::new(config.seed);
     let mut test_rng = Rng::new(config.seed.wrapping_add(1));
-    let train = generate_train(&intents, catalog.pools, config.per_intent, &mut train_rng)
-        .map_err(|e| vec![e])?;
+    let mut dev_rng = Rng::new(config.seed.wrapping_add(2));
     let test = generate_test(&intents, catalog.pools, &mut test_rng).map_err(|e| vec![e])?;
-    check_disjoint(&train, &test)?;
+    let dev = generate_dev(&intents, catalog.pools, &mut dev_rng).map_err(|e| vec![e])?;
+    let held_out: Vec<Example> = dev.iter().chain(&test).cloned().collect();
+    let train = generate_train(
+        &intents,
+        catalog.pools,
+        config.per_intent,
+        &held_out,
+        &mut train_rng,
+    )
+    .map_err(|e| vec![e])?;
+    let mut errors = Vec::new();
+    for check in [
+        check_disjoint(&train, &test, "test"),
+        check_disjoint(&train, &dev, "development"),
+        check_dev_test_disjoint(&dev, &test),
+    ] {
+        errors.extend(check.err().unwrap_or_default());
+    }
+    if !errors.is_empty() {
+        return Err(errors);
+    }
 
     // Everything is valid; only now touch the disk.
     let infos =
         serde_json::to_string_pretty(&intent_infos(&intents)).map_err(|e| vec![e.to_string()])?;
     let train_text = to_jsonl(&train).map_err(|e| vec![e])?;
     let test_text = to_jsonl(&test).map_err(|e| vec![e])?;
+    let dev_text = to_jsonl(&dev).map_err(|e| vec![e])?;
     fs::create_dir_all(&config.out)
         .map_err(|e| vec![format!("could not create {}: {e}", config.out.display())])?;
     for (name, contents) in [
         ("intents.json", infos + "\n"),
         ("train.jsonl", train_text),
+        ("dev.jsonl", dev_text),
         ("test.jsonl", test_text),
     ] {
         write_atomic(&config.out, name, &contents).map_err(|e| vec![e])?;
@@ -137,6 +160,7 @@ fn run(config: &Config) -> Result<(), Vec<String>> {
         train.len(),
         config.seed
     );
+    println!("  development:        {}", dev.len());
     println!("  test examples:      {}", test.len());
     Ok(())
 }
@@ -179,7 +203,7 @@ mod tests {
         let c = parse(&[]).unwrap().unwrap();
         assert_eq!(
             (c.out, c.seed, c.per_intent),
-            (PathBuf::from("data/commands"), 42, 80)
+            (PathBuf::from("data/commands"), 42, 150)
         );
         let c = parse(&["--out", "x", "--seed", "1", "--per-intent", "5"])
             .unwrap()
@@ -208,13 +232,20 @@ mod tests {
         };
         let train = [example("show the files in src", "src")];
         let test = [example("Show the files in SRC", "src")];
-        let errors = check_disjoint(&train, &test).unwrap_err();
+        let errors = check_disjoint(&train, &test, "test").unwrap_err();
         assert!(
             errors
                 .iter()
                 .any(|e| e.contains("also appears in training"))
         );
         assert!(errors.iter().any(|e| e.contains("test slot value \"src\"")));
-        assert!(check_disjoint(&train, &[example("list everything in build", "build")]).is_ok());
+        assert!(
+            check_disjoint(
+                &train,
+                &[example("list everything in build", "build")],
+                "test"
+            )
+            .is_ok()
+        );
     }
 }

@@ -44,6 +44,47 @@ const P_ASK_PREFIX: f64 = 0.2;
 const P_QUESTION_MARK: f64 = 0.5;
 const P_FULL_STOP: f64 = 0.1;
 const P_CAPITALISE: f64 = 0.5;
+/// Chance of contracting each eligible word pair ("what is" → "what's").
+const P_CONTRACT: f64 = 0.4;
+
+/// Everyday contractions. People type "what's" (or "whats") far more often than the grammar's
+/// "what is", so the model should see both.
+const CONTRACTIONS: &[(&str, &str, &[&str])] = &[
+    ("what", "is", &["what's", "whats"]),
+    ("where", "is", &["where's"]),
+    ("who", "is", &["who's"]),
+    ("how", "is", &["how's"]),
+    ("it", "is", &["it's"]),
+    ("that", "is", &["that's"]),
+    ("there", "is", &["there's"]),
+    ("i", "am", &["i'm", "im"]),
+    ("do", "not", &["don't"]),
+];
+
+/// Randomly contract word pairs listed in CONTRACTIONS (case-insensitive match).
+pub fn contract(text: &str, rng: &mut Rng) -> String {
+    let words: Vec<&str> = text.split(' ').collect();
+    let mut out: Vec<String> = Vec::with_capacity(words.len());
+    let mut i = 0;
+    while i < words.len() {
+        let pair = words.get(i + 1).and_then(|next| {
+            CONTRACTIONS
+                .iter()
+                .find(|(a, b, _)| words[i].eq_ignore_ascii_case(a) && next.eq_ignore_ascii_case(b))
+        });
+        match pair {
+            Some((_, _, forms)) if rng.chance(P_CONTRACT) => {
+                out.push(rng.choose(forms).to_string());
+                i += 2;
+            }
+            _ => {
+                out.push(words[i].to_string());
+                i += 1;
+            }
+        }
+    }
+    out.join(" ")
+}
 
 /// Give up on an intent after this many draws per wanted example (all duplicates).
 const MAX_ATTEMPTS_PER_EXAMPLE: usize = 50;
@@ -80,7 +121,7 @@ fn draw_values(
 /// Add natural variety around a phrasing. Works on the placeholder form, so `{dir}?` still
 /// tokenizes to `{dir}`.
 pub fn wrap(kind: Kind, text: &str, rng: &mut Rng) -> String {
-    let mut out = text.to_string();
+    let mut out = contract(text, rng);
     let mut ends_with_question = false;
     match kind {
         Kind::Do => {
@@ -168,20 +209,25 @@ pub fn build_example(
 }
 
 /// Training examples: `per_intent` per intent where possible, no duplicate texts, shuffled.
+/// `held_out` holds the development and test texts: a generated sentence that happens to equal
+/// one of them word for word (compared lowercased) is skipped, so held-out sets stay unseen.
 pub fn generate_train(
     intents: &[Prepared],
     pools: &[SlotPool],
     per_intent: usize,
+    held_out: &[Example],
     rng: &mut Rng,
 ) -> Result<Vec<Example>, String> {
-    let mut seen: HashSet<String> = HashSet::new();
+    let mut seen: HashSet<String> = held_out.iter().map(|e| e.text.to_lowercase()).collect();
     let mut examples = Vec::new();
     for intent in intents {
         let mut made = 0;
         let mut attempts = 0;
         while made < per_intent && attempts < per_intent * MAX_ATTEMPTS_PER_EXAMPLE {
             attempts += 1;
-            let phrasing = rng.choose(&intent.phrasings);
+            // Line first, then one of its expansions (see Prepared::lines).
+            let line = rng.choose(&intent.lines);
+            let phrasing = &intent.phrasings[*rng.choose(line)];
             let values = draw_values(&phrasing.text, pools, Split::Train, rng);
             let wrapped = wrap(phrasing.kind, &phrasing.text, rng);
             let example = build_example(intent, &wrapped, &values)?;
@@ -201,9 +247,28 @@ pub fn generate_test(
     pools: &[SlotPool],
     rng: &mut Rng,
 ) -> Result<Vec<Example>, String> {
+    held_out(intents, pools, |i| &i.tests, rng)
+}
+
+/// Development examples: each hand-written development sentence once, with values from the
+/// test pools (values never seen in training).
+pub fn generate_dev(
+    intents: &[Prepared],
+    pools: &[SlotPool],
+    rng: &mut Rng,
+) -> Result<Vec<Example>, String> {
+    held_out(intents, pools, |i| &i.dev, rng)
+}
+
+fn held_out(
+    intents: &[Prepared],
+    pools: &[SlotPool],
+    sentences: impl Fn(&Prepared) -> &[String],
+    rng: &mut Rng,
+) -> Result<Vec<Example>, String> {
     let mut examples = Vec::new();
     for intent in intents {
-        for sentence in &intent.tests {
+        for sentence in sentences(intent) {
             let values = draw_values(sentence, pools, Split::Test, rng);
             examples.push(build_example(intent, sentence, &values)?);
         }
@@ -270,7 +335,9 @@ mod tests {
             name: "list_files",
             template: Some(Template::parse("ls -la {dir?}").unwrap()),
             phrasings: Vec::new(),
+            lines: Vec::new(),
             tests: Vec::new(),
+            dev: Vec::new(),
         }
     }
 
@@ -297,7 +364,7 @@ mod tests {
     #[test]
     fn test_tags_align_and_commands_reconstruct() {
         let (intents, pools) = real();
-        let train = generate_train(&intents, pools, 20, &mut Rng::new(1)).unwrap();
+        let train = generate_train(&intents, pools, 20, &[], &mut Rng::new(1)).unwrap();
         let test = generate_test(&intents, pools, &mut Rng::new(2)).unwrap();
         for e in train.iter().chain(&test) {
             assert_eq!(e.tokens, tokenize(&e.text), "{}", e.text);
@@ -320,17 +387,17 @@ mod tests {
     #[test]
     fn test_same_seed_same_examples() {
         let (intents, pools) = real();
-        let a = generate_train(&intents, pools, 10, &mut Rng::new(42)).unwrap();
-        let b = generate_train(&intents, pools, 10, &mut Rng::new(42)).unwrap();
+        let a = generate_train(&intents, pools, 10, &[], &mut Rng::new(42)).unwrap();
+        let b = generate_train(&intents, pools, 10, &[], &mut Rng::new(42)).unwrap();
         assert_eq!(a, b);
-        let c = generate_train(&intents, pools, 10, &mut Rng::new(43)).unwrap();
+        let c = generate_train(&intents, pools, 10, &[], &mut Rng::new(43)).unwrap();
         assert_ne!(a, c);
     }
 
     #[test]
     fn test_per_intent_count_and_no_duplicates() {
         let (intents, pools) = real();
-        let train = generate_train(&intents, pools, 30, &mut Rng::new(7)).unwrap();
+        let train = generate_train(&intents, pools, 30, &[], &mut Rng::new(7)).unwrap();
         assert_eq!(train.len(), 30 * intents.len());
         let unique: HashSet<String> = train.iter().map(|e| e.text.to_lowercase()).collect();
         assert_eq!(unique.len(), train.len());
@@ -347,6 +414,34 @@ mod tests {
                 .iter()
                 .all(|e| e.command.is_none() && e.slots.is_empty())
         );
+    }
+
+    #[test]
+    fn test_contractions() {
+        let mut rng = Rng::new(3);
+        let mut seen = HashSet::new();
+        for _ in 0..200 {
+            seen.insert(contract("What is in {dir}", &mut rng));
+        }
+        assert!(seen.contains("What is in {dir}"));
+        assert!(seen.contains("what's in {dir}"));
+        assert!(seen.contains("whats in {dir}"));
+        // Words that only look similar are left alone.
+        assert_eq!(contract("whatis in it", &mut rng), "whatis in it");
+    }
+
+    #[test]
+    fn test_every_line_gets_sampled() {
+        // ping_host has a one-expansion line ("ping {host}"); line-first sampling must use it.
+        let (intents, pools) = real();
+        let train = generate_train(&intents, pools, 80, &[], &mut Rng::new(42)).unwrap();
+        let pings = train
+            .iter()
+            .filter(|e| {
+                e.intent == "ping_host" && e.tokens.iter().any(|t| t.eq_ignore_ascii_case("ping"))
+            })
+            .count();
+        assert!(pings >= 5, "only {pings} examples use the word ping");
     }
 
     #[test]
