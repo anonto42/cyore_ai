@@ -41,6 +41,10 @@ When starting any new task, bug fix, or feature in this repository, follow these
      tests), `main.rs` (binary `cyore`), `embedded.rs` + `build.rs` (int8 model built in when
      `data/models/intent/model-q8.bpk` exists at build time; `CYORE_MODEL_DIR` overrides).
      Any change here must keep "nothing runs without y".
-5. **Run Verification Before & After:**
+5. **Keep Evaluations Honest:**
+   Before changing the dataset, the model, or reporting scores, read
+   `.agents/shared/rules/evaluation.md`: development data guides changes; test and human data are
+   report only; never read `dataset/human_test.txt`.
+6. **Run Verification Before & After:**
    Always run `make check` (`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`,
    release build) before finishing any edit.

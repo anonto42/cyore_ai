@@ -84,6 +84,7 @@ is the yardstick the joint model is compared against.
 | validation | 10% of the generated training sentences | does the model fit the grammar? |
 | development | 162 hand-written sentences | choosing the saved epoch, and every catalog or model change |
 | test | 162 other hand-written sentences | the final report only |
+| human | `dataset/human_test.txt`, written by someone else | the independent final report (`make intent-eval-human`, totals only) |
 
 ## Results (seed 42)
 

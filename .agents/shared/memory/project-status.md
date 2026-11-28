@@ -95,6 +95,16 @@ that batch, "old" = the original 162.
 - int8 now uses one scale per row: per tensor fell 1.2 points below f32 on test (spec: ≤ 1);
   per row matches f32 at 29% of the size (spec: ≤ 30%). Block 16/32 did not fit the size budget.
 
+## Human test set tooling (add-human-test-set)
+
+- `dataset/human_test.txt` (tracked; template only, no sentences yet): `intent  request` per line
+  with `[slot: value]`. Validated by `dataset::human` with line numbers; converted to
+  `human.jsonl` (written only when its content changes, so its mtime dates the set) and held out
+  from training. `make intent-eval-human` prints totals only, plus a stale-model warning and
+  dev/test overlap counts. Rules in `.agents/shared/rules/evaluation.md`.
+- Next measurement for `add-intent-model`: the owner writes the sentences, then
+  `make commands-data && make intent-train && make intent-eval-human`.
+
 ## `agent` design
 
 - `safety::check` is the only constructor of `CheckedCommand`; `Runner::run` only takes that type.

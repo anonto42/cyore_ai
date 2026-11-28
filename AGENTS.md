@@ -8,6 +8,7 @@ Before implementation, diagnosis, or refactoring, read:
 2. `.agents/shared/rules/rust-standards.md`
 3. `.agents/shared/rules/safety.md`
 4. `.agents/shared/rules/git.md`
+5. `.agents/shared/rules/evaluation.md` (before touching the dataset, the model, or their scores)
 
 Do not create duplicated rules, memory, or plans outside `.agents/shared/`.
 

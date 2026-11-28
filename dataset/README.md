@@ -104,6 +104,23 @@ with 48 variants drown out `ping {host}`, and words from short lines would never
 the vocabulary. A generated sentence that equals a development or test sentence word for word
 is skipped.
 
+## A test set written by you
+
+`dataset/human_test.txt` is for someone other than the catalog's author to write requests in
+their own words, which is the independent check of how well Cyore understands people. One
+request per line, intent first, slot values marked inline:
+
+```text
+count_lines   how many lines are in [file: notes.txt]
+unknown       book me a taxi to the airport
+```
+
+The file lists every intent with its command and slots. `make commands-data` validates it (with
+line numbers), writes `data/commands/human.jsonl`, and keeps those requests out of the training
+data. Then `make intent-train && make intent-eval-human` scores the model, printing totals only.
+See `.agents/shared/rules/evaluation.md`: the human set is report-only and must never guide
+changes.
+
 ## Adding an intent
 
 1. Add an `Intent { name, command, phrasings, tests, dev }` entry to `INTENTS` (at least 3
