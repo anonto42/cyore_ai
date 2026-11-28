@@ -68,8 +68,8 @@ Last updated: 2026-11-28
   independent. A test set written by someone else is the stronger check.
 - At threshold 0.7: 71% of test requests are answered, 77% of those correctly. 10/12
   out-of-scope test requests get no command; the 2 that slip through map to harmless `pwd`/`lsblk`.
-- Open OpenSpec changes awaiting the owner: `add-intent-model` (70% target decision), `add-agent`
-  and `add-packaging` (review, then archive in that order).
+- `add-agent` and `add-packaging` archived 2026-11-28. `add-intent-model` stays open by the
+  owner's decision: the 70% test-intent target is kept, not lowered.
 - `add-intent-model` is still open: its 70% test-intent target was missed, and lowering it needs
   the owner's explicit decision.
 - Next lever: more varied *human-written* training sentences (or paraphrase augmentation), not
