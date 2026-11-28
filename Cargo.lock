@@ -64,7 +64,7 @@ dependencies = [
 
 [[package]]
 name = "agent"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "dataset",
  "intent",
@@ -2163,7 +2163,7 @@ checksum = "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
 
 [[package]]
 name = "dataset"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -3348,7 +3348,7 @@ dependencies = [
 
 [[package]]
 name = "intent"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "burn",
  "dataset",
@@ -3819,7 +3819,7 @@ dependencies = [
 
 [[package]]
 name = "mnist"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "moddef"
@@ -7002,7 +7002,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xor"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "xxhash-rust"

@@ -1,6 +1,6 @@
 [package]
 name = "agent"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2024"
 
 # Stage 3: the program people run. No new third-party crates: the model comes from our own

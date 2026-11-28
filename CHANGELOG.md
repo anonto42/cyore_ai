@@ -5,6 +5,15 @@ and versions follow [Semantic Versioning](https://semver.org/) as described in [
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-28
+
+The first published release. It contains everything listed under 0.5.0.
+
+### Fixed
+- The release workflow's ARM64 job failed while compiling tests: Burn's `gemm-f16` matrix
+  kernels only assemble for ARM64 when optimised. They are now always optimised, including in
+  debug and test builds. `v0.5.0` was tagged but never published because of this.
+
 ## [0.5.0] - 2026-11-28
 
 The first release: all four stages of the learning plan, from a hand-written XOR network to
@@ -49,5 +58,6 @@ a single-file agent.
 - Slot values are single words (no paths with spaces).
 - On Windows the build runs, but its commands are Unix tools.
 
-[Unreleased]: https://github.com/anonto42/cyore_ai/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/anonto42/cyore_ai/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/anonto42/cyore_ai/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/anonto42/cyore_ai/releases/tag/v0.5.0
