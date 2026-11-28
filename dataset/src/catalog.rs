@@ -62,6 +62,47 @@ pub const DO_PREFIXES: &[&str] = &[
 pub const DO_SUFFIXES: &[&str] = &["please", "for me", "now"];
 pub const ASK_PREFIXES: &[&str] = &["hey,", "quick question,", "so", "ok,"];
 
+/// Everyday variants (see generate.rs `vary`). Display verbs are interchangeable at the start of
+/// a request ("show the files" / "list the files" / "view the files").
+pub const DISPLAY_VERBS: &[&str] = &["show", "list", "display", "print", "view", "get"];
+/// Nouns people naturally say "my" in front of ("show my files", "check my disk").
+pub const PERSONAL_NOUNS: &[&str] = &[
+    "files",
+    "file",
+    "folder",
+    "folders",
+    "directory",
+    "disk",
+    "disks",
+    "drive",
+    "drives",
+    "memory",
+    "ram",
+    "processes",
+    "programs",
+    "ip",
+    "branch",
+    "branches",
+    "commits",
+    "changes",
+    "path",
+    "username",
+    "hostname",
+    "computer",
+    "machine",
+    "system",
+    "cpu",
+    "processor",
+    "kernel",
+    "environment",
+    "calendar",
+    "routes",
+    "gateway",
+    "repo",
+    "repository",
+    "inodes",
+];
+
 // ---------------------------------------------------------------------------------------------
 // Slot values. No whitespace, no shell metacharacters; train and test lists never overlap.
 // A leading `~/` is left for the Stage 3 agent to expand, since commands run without a shell.
@@ -263,6 +304,9 @@ pub const INTENTS: &[Intent] = &[
             "what have I got in {dir}",
             "peek into {dir} and tell me what's there",
             "contents of the current directory please",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "show my files",
+            "files in {dir}?",
         ],
     },
     Intent {
@@ -285,6 +329,9 @@ pub const INTENTS: &[Intent] = &[
             "rank the files in {dir} by size",
             "which files here take up the most room",
             "show me big files first",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "list biggest files in {dir}",
+            "sort my files by size",
         ],
     },
     Intent {
@@ -307,6 +354,9 @@ pub const INTENTS: &[Intent] = &[
             "sort {dir} so the newest files come first",
             "what was modified lately in this folder",
             "show recently changed files",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "latest files first",
+            "show my newest files",
         ],
     },
     Intent {
@@ -329,6 +379,9 @@ pub const INTENTS: &[Intent] = &[
             "which directory is my shell in",
             "print where I currently am",
             "tell me the full path of this folder",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "my current folder?",
+            "show working dir",
         ],
     },
     Intent {
@@ -351,6 +404,9 @@ pub const INTENTS: &[Intent] = &[
             "open up {file} so I can read it",
             "display what's written in {file}",
             "can I see the text of {file}",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "view {file}",
+            "print out {file}",
         ],
     },
     Intent {
@@ -372,6 +428,9 @@ pub const INTENTS: &[Intent] = &[
             "print {file} and number every line",
             "I want line numbers next to the contents of {file}",
             "show {file} numbered",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "cat {file} with numbers",
+            "{file} with line numbers please",
         ],
     },
     Intent {
@@ -394,6 +453,9 @@ pub const INTENTS: &[Intent] = &[
             "only show the first lines of {file}",
             "give me the top of {file}",
             "preview the beginning of {file}",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "first 20 lines of {file}",
+            "top of {file}",
         ],
     },
     Intent {
@@ -416,6 +478,9 @@ pub const INTENTS: &[Intent] = &[
             "only the last lines of {file} please",
             "show me how {file} ends",
             "what are the final entries in {file}",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "end of {file} please",
+            "tail of {file}",
         ],
     },
     Intent {
@@ -437,6 +502,9 @@ pub const INTENTS: &[Intent] = &[
             "how long is {file} in lines",
             "number of lines in {file}?",
             "tell me how many lines {file} contains",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "how many lines has {file} got",
+            "wc {file}",
         ],
     },
     Intent {
@@ -458,6 +526,9 @@ pub const INTENTS: &[Intent] = &[
             "is {file} an image, text or something else",
             "check what sort of data {file} holds",
             "what kind of thing is {file}",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "type of {file}?",
+            "what's {file}",
         ],
     },
     Intent {
@@ -481,6 +552,9 @@ pub const INTENTS: &[Intent] = &[
             "when did {file} last change",
             "show the owner and permissions of {file}",
             "metadata for {file} please",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "stat {file}",
+            "info on {file}",
         ],
     },
     Intent {
@@ -503,6 +577,9 @@ pub const INTENTS: &[Intent] = &[
             "sha256 of {file}",
             "give me a hash of {file} to verify it",
             "fingerprint {file}",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "sha {file}",
+            "checksum for {file} please",
         ],
     },
     Intent {
@@ -525,6 +602,9 @@ pub const INTENTS: &[Intent] = &[
             "search this folder for {pattern} files",
             "where can I find {pattern} files inside {dir}",
             "find every file ending in {pattern}",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "find {pattern} in {dir}",
+            "any {pattern} here?",
         ],
     },
     Intent {
@@ -547,6 +627,9 @@ pub const INTENTS: &[Intent] = &[
             "look inside files in {dir} for the word {text}",
             "which files mention {text} at all",
             "grep for {text}",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "search {dir} for {text}",
+            "find {text} in my files",
         ],
     },
     Intent {
@@ -569,6 +652,9 @@ pub const INTENTS: &[Intent] = &[
             "how much space does {dir} take up",
             "total size of {dir}",
             "is this folder big",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "{dir} size",
+            "how big is my folder",
         ],
     },
     // ----- Files: creating (non-destructive) -----
@@ -591,6 +677,9 @@ pub const INTENTS: &[Intent] = &[
             "make a new folder {dir}",
             "create directory {dir} please",
             "new folder called {dir}",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "new dir {dir}",
+            "add folder {dir}",
         ],
     },
     Intent {
@@ -612,6 +701,9 @@ pub const INTENTS: &[Intent] = &[
             "create an empty {file}",
             "make a blank file named {file}",
             "new file {file}",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "empty file {file}",
+            "start {file} from scratch",
         ],
     },
     // ----- Disks and memory -----
@@ -636,6 +728,9 @@ pub const INTENTS: &[Intent] = &[
             "how much room is left on the disk",
             "free disk space?",
             "check if my drive is getting full",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "disk space?",
+            "how full is my disk",
         ],
     },
     Intent {
@@ -658,6 +753,9 @@ pub const INTENTS: &[Intent] = &[
             "how many inodes do I have left",
             "inode usage per filesystem",
             "are inodes running low",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "inodes?",
+            "check my inodes",
         ],
     },
     Intent {
@@ -680,6 +778,9 @@ pub const INTENTS: &[Intent] = &[
             "is my memory almost full",
             "how much memory am I using",
             "ram status",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "memory left?",
+            "check my ram",
         ],
     },
     Intent {
@@ -700,6 +801,9 @@ pub const INTENTS: &[Intent] = &[
             "list all my storage devices",
             "what drives are plugged into this machine",
             "show disks and partitions",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "my drives?",
+            "show attached disks",
         ],
     },
     Intent {
@@ -722,6 +826,9 @@ pub const INTENTS: &[Intent] = &[
             "what is mounted right now",
             "show me where my drives are mounted",
             "what mount points does this system have",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "mounts?",
+            "list my mounts",
         ],
     },
     // ----- System -----
@@ -744,6 +851,9 @@ pub const INTENTS: &[Intent] = &[
             "full details about this OS",
             "what system am I on",
             "print uname info",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "which os am i on",
+            "system details please",
         ],
     },
     Intent {
@@ -765,6 +875,9 @@ pub const INTENTS: &[Intent] = &[
             "which kernel version am I running",
             "kernel version?",
             "what linux kernel do I have",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "kernel?",
+            "my kernel version",
         ],
     },
     Intent {
@@ -786,6 +899,9 @@ pub const INTENTS: &[Intent] = &[
             "what's the name of this computer",
             "show my hostname",
             "what is this machine called",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "my hostname",
+            "computer name?",
         ],
     },
     Intent {
@@ -808,6 +924,9 @@ pub const INTENTS: &[Intent] = &[
             "how long since the computer started",
             "uptime please",
             "when was the last boot",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "how long have i been up",
+            "since when is the system on",
         ],
     },
     Intent {
@@ -830,6 +949,9 @@ pub const INTENTS: &[Intent] = &[
             "what user am I logged in as",
             "which user is running this shell",
             "my username?",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "current username?",
+            "which user am i",
         ],
     },
     Intent {
@@ -847,7 +969,14 @@ pub const INTENTS: &[Intent] = &[
             "give me the clock time",
             "current day and hour please",
         ],
-        dev: &["today's date please", "current time?", "what's the date"],
+        dev: &[
+            "today's date please",
+            "current time?",
+            "what's the date",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "date?",
+            "time now",
+        ],
     },
     Intent {
         name: "calendar",
@@ -867,6 +996,9 @@ pub const INTENTS: &[Intent] = &[
             "show this month's calendar",
             "print a calendar",
             "calendar please",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "cal",
+            "month view",
         ],
     },
     Intent {
@@ -888,6 +1020,9 @@ pub const INTENTS: &[Intent] = &[
             "cpu model and speed",
             "tell me about the processor",
             "which cpu does this computer use",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "my cpu",
+            "processor info",
         ],
     },
     Intent {
@@ -909,6 +1044,9 @@ pub const INTENTS: &[Intent] = &[
             "number of cores",
             "count the cpu cores",
             "how many processors are in this machine",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "cores?",
+            "how many cores",
         ],
     },
     Intent {
@@ -930,6 +1068,9 @@ pub const INTENTS: &[Intent] = &[
             "list running programs",
             "what's running on my computer right now",
             "list everything that is running",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "running processes?",
+            "what's running",
         ],
     },
     Intent {
@@ -952,6 +1093,9 @@ pub const INTENTS: &[Intent] = &[
             "which process uses the most cpu",
             "what's using so much cpu",
             "show the cpu hogs",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "top cpu processes",
+            "cpu hungry programs",
         ],
     },
     Intent {
@@ -974,6 +1118,9 @@ pub const INTENTS: &[Intent] = &[
             "which program uses the most ram",
             "show the biggest memory hogs",
             "processes sorted by memory use",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "top memory processes",
+            "ram hungry programs",
         ],
     },
     Intent {
@@ -996,6 +1143,9 @@ pub const INTENTS: &[Intent] = &[
             "is {process} running right now",
             "show me the pid of {process}",
             "check if {process} is alive",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "{process} running?",
+            "pid of {process}",
         ],
     },
     Intent {
@@ -1017,6 +1167,9 @@ pub const INTENTS: &[Intent] = &[
             "who else is logged in",
             "list users on this machine",
             "which users are connected right now",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "who's logged in",
+            "users online",
         ],
     },
     Intent {
@@ -1038,6 +1191,9 @@ pub const INTENTS: &[Intent] = &[
             "show my environment variables",
             "list env",
             "what environment variables are set",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "my env",
+            "environment please",
         ],
     },
     Intent {
@@ -1059,6 +1215,9 @@ pub const INTENTS: &[Intent] = &[
             "what's in my PATH variable",
             "which folders does PATH contain",
             "echo $PATH",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "my PATH",
+            "path variable?",
         ],
     },
     Intent {
@@ -1081,6 +1240,9 @@ pub const INTENTS: &[Intent] = &[
             "where is {program}",
             "path to {program}",
             "is {program} available",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "where's {program}",
+            "find {program} binary",
         ],
     },
     // ----- Network -----
@@ -1103,6 +1265,9 @@ pub const INTENTS: &[Intent] = &[
             "my ip?",
             "which ip do I have",
             "list ip addresses of this computer",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "ip?",
+            "my ip addresses",
         ],
     },
     Intent {
@@ -1124,6 +1289,9 @@ pub const INTENTS: &[Intent] = &[
             "show the default route",
             "what's my gateway",
             "print routing table",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "routes?",
+            "my gateway",
         ],
     },
     Intent {
@@ -1146,6 +1314,9 @@ pub const INTENTS: &[Intent] = &[
             "ping {host} a few times",
             "is {host} reachable from here",
             "does {host} respond",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "ping {host} please",
+            "is {host} alive",
         ],
     },
     Intent {
@@ -1168,6 +1339,9 @@ pub const INTENTS: &[Intent] = &[
             "show listening sockets",
             "which ports is this machine listening on",
             "any open ports here",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "open ports?",
+            "listening ports",
         ],
     },
     Intent {
@@ -1177,6 +1351,7 @@ pub const INTENTS: &[Intent] = &[
             "do: (look up|resolve|find) [the] (ip|ip address|address) (of|for) {host}",
             "ask: what (ip|address) does {host} (resolve to|point to|have)",
             "do: (resolve|look up) {host}",
+            "(dns|nslookup|lookup) [for] {host}",
             "do: look up {host} in dns",
             "do: get the (ip|address|ip address) (of|for) {host}",
             "(ip|address|ip address) (of|for) {host}",
@@ -1190,6 +1365,9 @@ pub const INTENTS: &[Intent] = &[
             "look up {host} in dns",
             "get the address of {host}",
             "ip address for {host}?",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "dns {host}",
+            "lookup {host}",
         ],
     },
     // ----- Git -----
@@ -1212,6 +1390,9 @@ pub const INTENTS: &[Intent] = &[
             "what's the status of my repo",
             "git status please",
             "anything changed in the repo",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "status of git",
+            "what's changed",
         ],
     },
     Intent {
@@ -1234,6 +1415,9 @@ pub const INTENTS: &[Intent] = &[
             "last few commits",
             "commit history please",
             "what has been committed recently",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "commits?",
+            "my last commits",
         ],
     },
     Intent {
@@ -1256,6 +1440,9 @@ pub const INTENTS: &[Intent] = &[
             "show me what changed",
             "diff please",
             "what did I edit since the last commit",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "my changes",
+            "show diff",
         ],
     },
     Intent {
@@ -1276,6 +1463,9 @@ pub const INTENTS: &[Intent] = &[
             "show every branch in this repo",
             "which branches are there",
             "all git branches",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "branches?",
+            "list my branches",
         ],
     },
     Intent {
@@ -1297,6 +1487,9 @@ pub const INTENTS: &[Intent] = &[
             "current branch?",
             "what branch is checked out",
             "tell me which branch I'm using",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "which branch",
+            "my branch?",
         ],
     },
     Intent {
@@ -1319,6 +1512,9 @@ pub const INTENTS: &[Intent] = &[
             "where does origin point",
             "what is origin",
             "remote repositories for this project",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "remotes?",
+            "origin url",
         ],
     },
     // ----- Out of scope -----
@@ -1379,6 +1575,12 @@ pub const INTENTS: &[Intent] = &[
             "lock the screen",
             "send a text to my friend",
             "uninstall everything",
+            // Second batch (everyday style), added by improve-phrasing-coverage.
+            "delete my files",
+            "shutdown",
+            "open firefox",
+            "hi there",
+            "download a movie",
         ],
     },
 ];

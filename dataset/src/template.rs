@@ -82,6 +82,33 @@ impl Template {
         }
     }
 
+    /// How someone might type the command itself as a request: the program, its plain-word
+    /// arguments, and slot placeholders, without options or numbers. With every slot and with
+    /// only the required ones: `grep -rn {text} {dir=.}` → ["grep {text} {dir}", "grep {text}"];
+    /// `git remote -v` → ["git remote"].
+    pub fn spoken_forms(&self) -> Vec<String> {
+        let mut forms: Vec<String> = Vec::new();
+        for all_slots in [true, false] {
+            let words: Vec<String> =
+                self.words
+                    .iter()
+                    .filter_map(|w| match w {
+                        Word::Literal(text) if text.chars().all(|c| c.is_alphabetic()) => {
+                            Some(text.clone())
+                        }
+                        Word::Literal(_) => None,
+                        Word::Slot { name, kind } => (all_slots || *kind == SlotKind::Required)
+                            .then(|| format!("{{{name}}}")),
+                    })
+                    .collect();
+            let form = words.join(" ");
+            if !forms.contains(&form) {
+                forms.push(form);
+            }
+        }
+        forms
+    }
+
     /// The template's slots in order: (name, kind).
     pub fn slots(&self) -> Vec<(&str, &SlotKind)> {
         self.words
@@ -175,6 +202,19 @@ mod tests {
     fn test_unknown_value_rejected() {
         let t = Template::parse("pwd").unwrap();
         assert!(t.fill(&values(&[("dir", "x")])).is_err());
+    }
+
+    #[test]
+    fn test_spoken_forms() {
+        let forms = |t: &str| Template::parse(t).unwrap().spoken_forms();
+        assert_eq!(
+            forms("grep -rn {text} {dir=.}"),
+            ["grep {text} {dir}", "grep {text}"]
+        );
+        assert_eq!(forms("git remote -v"), ["git remote"]);
+        assert_eq!(forms("head -n 20 {file}"), ["head {file}"]);
+        assert_eq!(forms("ls -la {dir?}"), ["ls {dir}", "ls"]);
+        assert_eq!(forms("printenv PATH"), ["printenv PATH"]);
     }
 
     #[test]

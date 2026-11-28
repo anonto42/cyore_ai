@@ -11,7 +11,9 @@ use std::collections::{BTreeMap, HashSet};
 
 use serde::Serialize;
 
-use crate::catalog::{ASK_PREFIXES, DO_PREFIXES, DO_SUFFIXES, SlotPool};
+use crate::catalog::{
+    ASK_PREFIXES, DISPLAY_VERBS, DO_PREFIXES, DO_SUFFIXES, PERSONAL_NOUNS, SlotPool,
+};
 use crate::random::Rng;
 use crate::template::SlotKind;
 use crate::tokenize::tokenize;
@@ -60,6 +62,76 @@ const CONTRACTIONS: &[(&str, &str, &[&str])] = &[
     ("i", "am", &["i'm", "im"]),
     ("do", "not", &["don't"]),
 ];
+
+/// Probabilities for the everyday variants (improve-phrasing-coverage design, decision 2).
+const P_VERB_SWAP: f64 = 0.25;
+const P_ME_THE_TO_MY: f64 = 0.3;
+const P_DROP_ME: f64 = 0.3;
+const P_THE_TO_MY: f64 = 0.2;
+const P_DROP_ARTICLE: f64 = 0.3;
+
+fn is_one_of(word: &str, list: &[&str]) -> bool {
+    list.iter().any(|w| word.eq_ignore_ascii_case(w))
+}
+
+/// Everyday variants of a placeholder sentence, the way people actually type:
+///   "show me the files"    → "show my files"      (me the → my)
+///   "show me the files"    → "show the files"     (drop "me" after a display verb)
+///   "check the disk usage" → "check my disk usage" (the → my before a personal noun)
+///   "list the biggest files" → "list biggest files" (drop articles)
+///   "show the files"       → "view the files"     (swap the leading display verb)
+/// `{slot}` placeholders are never touched, so labels stay correct.
+pub fn vary(text: &str, rng: &mut Rng) -> String {
+    let mut words: Vec<String> = text.split(' ').map(String::from).collect();
+
+    // Swap a leading display verb for another one from the group.
+    if words.first().is_some_and(|w| is_one_of(w, DISPLAY_VERBS)) && rng.chance(P_VERB_SWAP) {
+        words[0] = rng.choose(DISPLAY_VERBS).to_string();
+    }
+
+    let mut out: Vec<String> = Vec::with_capacity(words.len());
+    let mut i = 0;
+    while i < words.len() {
+        let word = words[i].as_str();
+        let next = words.get(i + 1).map(String::as_str).unwrap_or("");
+        let prev_is_verb = out.last().is_some_and(|w| is_one_of(w, DISPLAY_VERBS));
+        if word.eq_ignore_ascii_case("me")
+            && next.eq_ignore_ascii_case("the")
+            && rng.chance(P_ME_THE_TO_MY)
+        {
+            out.push("my".to_string());
+            i += 2;
+            continue;
+        }
+        if word.eq_ignore_ascii_case("me")
+            && prev_is_verb
+            && !next.is_empty()
+            && rng.chance(P_DROP_ME)
+        {
+            i += 1;
+            continue;
+        }
+        if word.eq_ignore_ascii_case("the")
+            && is_one_of(next, PERSONAL_NOUNS)
+            && rng.chance(P_THE_TO_MY)
+        {
+            out.push("my".to_string());
+            i += 1;
+            continue;
+        }
+        if is_one_of(word, &["the", "a", "an"])
+            && !next.is_empty()
+            && !out.is_empty()
+            && rng.chance(P_DROP_ARTICLE)
+        {
+            i += 1;
+            continue;
+        }
+        out.push(words[i].clone());
+        i += 1;
+    }
+    out.join(" ")
+}
 
 /// Randomly contract word pairs listed in CONTRACTIONS (case-insensitive match).
 pub fn contract(text: &str, rng: &mut Rng) -> String {
@@ -121,7 +193,7 @@ fn draw_values(
 /// Add natural variety around a phrasing. Works on the placeholder form, so `{dir}?` still
 /// tokenizes to `{dir}`.
 pub fn wrap(kind: Kind, text: &str, rng: &mut Rng) -> String {
-    let mut out = contract(text, rng);
+    let mut out = contract(&vary(text, rng), rng);
     let mut ends_with_question = false;
     match kind {
         Kind::Do => {
@@ -324,6 +396,7 @@ mod tests {
     use crate::catalog::catalog;
     use crate::template::Template;
     use crate::validate::prepare;
+    use std::collections::HashMap;
 
     fn real() -> (Vec<Prepared>, &'static [SlotPool]) {
         let c = catalog();
@@ -414,6 +487,67 @@ mod tests {
                 .iter()
                 .all(|e| e.command.is_none() && e.slots.is_empty())
         );
+    }
+
+    #[test]
+    fn test_vary_produces_each_variant() {
+        let mut rng = Rng::new(11);
+        let mut seen = HashSet::new();
+        for _ in 0..2000 {
+            seen.insert(vary("show me the files", &mut rng));
+            seen.insert(vary("list the biggest files in {dir}", &mut rng));
+            seen.insert(vary("check the disk usage", &mut rng));
+        }
+        for expected in [
+            "show me the files",
+            "show my files",
+            "show the files",
+            "view me the files",
+            "list biggest files in {dir}",
+            "check my disk usage",
+        ] {
+            assert!(seen.contains(expected), "never produced {expected:?}");
+        }
+    }
+
+    #[test]
+    fn test_vary_keeps_placeholders_and_is_reproducible() {
+        let text = "show me the files in the {dir} folder";
+        let (mut a, mut b) = (Rng::new(5), Rng::new(5));
+        for _ in 0..500 {
+            let v = vary(text, &mut a);
+            assert_eq!(v.matches("{dir}").count(), 1, "{v}");
+            assert!(!v.is_empty() && !v.contains("  "), "{v:?}");
+            assert_eq!(v, vary(text, &mut b));
+        }
+    }
+
+    /// A variant of one intent's sentence must never be another intent's sentence: that would
+    /// teach the model contradictory labels.
+    #[test]
+    fn test_variants_never_cross_intents() {
+        let (intents, _) = real();
+        let mut owner: HashMap<String, &str> = HashMap::new();
+        for intent in &intents {
+            for p in &intent.phrasings {
+                owner.insert(p.text.to_lowercase(), intent.name);
+            }
+        }
+        let mut rng = Rng::new(3);
+        for intent in &intents {
+            for p in &intent.phrasings {
+                for _ in 0..5 {
+                    let v = vary(&p.text, &mut rng).to_lowercase();
+                    if let Some(other) = owner.get(&v) {
+                        assert_eq!(
+                            *other, intent.name,
+                            "variant {v:?} of {} is a phrasing of {other}",
+                            intent.name
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]

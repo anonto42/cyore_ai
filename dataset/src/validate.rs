@@ -288,6 +288,22 @@ pub fn prepare(catalog: &Catalog) -> Result<Vec<Prepared>, Vec<String>> {
         });
     }
 
+    // A hand-written sentence listed under two intents would be scored against two different
+    // answers (this happened once, when a dev batch was pasted into the wrong intent).
+    let mut held_out_owner: HashMap<String, &str> = HashMap::new();
+    for intent in &prepared {
+        for sentence in intent.tests.iter().chain(&intent.dev) {
+            if let Some(other) = held_out_owner.insert(sentence.to_lowercase(), intent.name)
+                && other != intent.name
+            {
+                errors.push(format!(
+                    "{}: held-out sentence \"{sentence}\" is also listed under {other}",
+                    intent.name
+                ));
+            }
+        }
+    }
+
     // The same sentence under two intents would teach the model contradictory labels.
     let mut owner: HashMap<String, &str> = HashMap::new();
     for intent in &prepared {
@@ -304,9 +320,52 @@ pub fn prepare(catalog: &Catalog) -> Result<Vec<Prepared>, Vec<String>> {
     }
 
     if errors.is_empty() {
+        add_spoken_commands(&mut prepared, &owner);
         Ok(prepared)
     } else {
         Err(errors)
+    }
+}
+
+/// People often type the command itself ("wc notes.txt", "git remote"). Give each intent its
+/// template's spoken forms as one extra phrasing line, unless the words are ambiguous: owned by
+/// another intent's grammar, or derived by two intents (`df -h` and `df -i` both give "df").
+/// Added after validation and not counted towards MIN_PHRASINGS.
+fn add_spoken_commands(prepared: &mut [Prepared], grammar_owner: &HashMap<String, &str>) {
+    let mut derived: BTreeMap<String, BTreeSet<usize>> = BTreeMap::new();
+    for (i, intent) in prepared.iter().enumerate() {
+        for form in intent.template.iter().flat_map(|t| t.spoken_forms()) {
+            derived.entry(form.to_lowercase()).or_default().insert(i);
+        }
+    }
+    for intent in prepared.iter_mut() {
+        let forms = intent
+            .template
+            .as_ref()
+            .map(|t| t.spoken_forms())
+            .unwrap_or_default();
+        let mut line = Vec::new();
+        for form in forms {
+            let key = form.to_lowercase();
+            let unique = derived.get(&key).is_some_and(|owners| owners.len() == 1);
+            let free = grammar_owner
+                .get(&key)
+                .is_none_or(|owner| *owner == intent.name);
+            let present = intent
+                .phrasings
+                .iter()
+                .any(|p| p.text.to_lowercase() == key);
+            if unique && free && !present {
+                line.push(intent.phrasings.len());
+                intent.phrasings.push(Phrasing {
+                    kind: Kind::Plain,
+                    text: form,
+                });
+            }
+        }
+        if !line.is_empty() {
+            intent.lines.push(line);
+        }
     }
 }
 
@@ -528,6 +587,27 @@ mod tests {
     }
 
     #[test]
+    fn test_held_out_sentence_under_two_intents() {
+        const INTENTS: &[Intent] = &[
+            Intent {
+                name: "a",
+                command: Some("ls"),
+                phrasings: &[TWENTY],
+                tests: &["x", "y", "z"],
+                dev: &["shared", "d2", "d3"],
+            },
+            Intent {
+                name: "b",
+                command: Some("cat"),
+                phrasings: &["do: (read|view|open|cat|dump) (it|that|this|them) [(now|please)]"],
+                tests: &["p", "q", "r"],
+                dev: &["Shared", "e2", "e3"],
+            },
+        ];
+        assert!(has(&errors_for(INTENTS), "is also listed under a"));
+    }
+
+    #[test]
     fn test_too_few_dev_sentences() {
         const INTENTS: &[Intent] = &[Intent {
             name: "a",
@@ -621,6 +701,21 @@ mod tests {
         check_pools(BAD_POOLS, &mut errors);
         assert!(has(&errors, "test value \"docs\" is also a training value"));
         assert!(has(&errors, "\"two words\" must be one token"));
+    }
+
+    #[test]
+    fn test_spoken_commands_added_only_when_unambiguous() {
+        let intents = prepare(&catalog()).unwrap();
+        let texts = |name: &str| -> Vec<String> {
+            let intent = intents.iter().find(|i| i.name == name).unwrap();
+            intent.phrasings.iter().map(|p| p.text.clone()).collect()
+        };
+        assert!(texts("count_lines").contains(&"wc {file}".to_string()));
+        assert!(texts("file_info").contains(&"stat {file}".to_string()));
+        assert!(texts("git_remotes").contains(&"git remote".to_string()));
+        // "df" would be both disk_space (df -h) and disk_inodes (df -i): neither gets it.
+        assert!(!texts("disk_space").contains(&"df".to_string()));
+        assert!(!texts("disk_inodes").contains(&"df".to_string()));
     }
 
     #[test]
