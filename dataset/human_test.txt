@@ -1,0 +1,77 @@
+# Cyore human test set
+#
+# Write requests the way YOU would type them, one per line, to measure how well Cyore
+# understands people it has never seen. Please do not look at dataset/src/catalog.rs first:
+# its phrasings would steer your wording, and the point is to test wording the model has not
+# been taught.
+#
+# Format:  <intent>  <request>
+#   - Pick the intent from the list below. Requests Cyore should NOT turn into a command
+#     (chit-chat, other apps, anything destructive) use the intent `unknown`.
+#   - Write each slot value (a folder, file, pattern, word, host, process or program) as
+#     [slot: value], e.g. [file: notes.txt]. Values are a single word, with no spaces.
+#   - Lines starting with # and blank lines are ignored.
+#
+# Examples (made up for this explanation, not part of the test set):
+#   count_lines   how many lines are in [file: notes.txt]
+#   unknown       book me a taxi to the airport
+#
+# Aim for at least 3 requests per intent and 10 for `unknown`. A partial set still works.
+# Then run:  make commands-data && make intent-train && make intent-eval-human
+# Scoring prints totals only, never your sentences.
+#
+# Intents (name: command it runs; slots in {braces}, `?` = optional, `=` = default):
+
+#   list_files           ls -la {dir?}
+#   list_by_size         ls -lhS {dir?}
+#   list_by_time         ls -lt {dir?}
+#   current_dir          pwd
+#   show_file            cat {file}
+#   show_file_numbered   cat -n {file}
+#   show_head            head -n 20 {file}
+#   show_tail            tail -n 20 {file}
+#   count_lines          wc -l {file}
+#   file_type            file {file}
+#   file_info            stat {file}
+#   file_checksum        sha256sum {file}
+#   find_by_name         find {dir=.} -name {pattern}
+#   search_text          grep -rn {text} {dir=.}
+#   dir_size             du -sh {dir=.}
+#   make_dir             mkdir -p {dir}
+#   create_file          touch {file}
+#   disk_space           df -h
+#   disk_inodes          df -i
+#   memory               free -h
+#   block_devices        lsblk
+#   mounted_filesystems  findmnt
+#   os_info              uname -a
+#   kernel_version       uname -r
+#   hostname             hostname
+#   uptime               uptime
+#   whoami               whoami
+#   date                 date
+#   calendar             cal
+#   cpu_info             lscpu
+#   cpu_count            nproc
+#   processes            ps aux
+#   top_cpu              ps aux --sort=-%cpu
+#   top_memory           ps aux --sort=-%mem
+#   find_process         pgrep -a {process}
+#   logged_in_users      who
+#   env_vars             env
+#   show_path            printenv PATH
+#   which_program        which {program}
+#   ip_addresses         ip addr
+#   routes               ip route
+#   ping_host            ping -c 4 {host}
+#   open_ports           ss -tuln
+#   dns_lookup           getent hosts {host}
+#   git_status           git status
+#   git_log              git log --oneline -n 10
+#   git_diff             git diff
+#   git_branches         git branch
+#   git_current_branch   git branch --show-current
+#   git_remotes          git remote -v
+#   unknown              (no command: requests Cyore must decline)
+#
+# ---- your requests below this line ----

@@ -27,6 +27,7 @@ Options:
   --out <DIR>         Output directory                    [default: data/commands]
   --seed <N>          Random seed (same seed = same files) [default: 42]
   --per-intent <N>    Training examples per intent        [default: 150]
+  --human <FILE>      Human-written test set              [default: dataset/human_test.txt]
   --help              Show this message";
 
 #[derive(Debug, PartialEq)]
@@ -34,12 +35,15 @@ struct Config {
     out: PathBuf,
     seed: u64,
     per_intent: usize,
+    /// A test set written by a person (see src/human.rs); may be missing or comments only.
+    human: PathBuf,
 }
 
 /// None means "--help was given".
 fn parse_args(args: &[String]) -> Result<Option<Config>, String> {
     let mut config = Config {
         out: PathBuf::from("data/commands"),
+        human: PathBuf::from("dataset/human_test.txt"),
         seed: 42,
         per_intent: 150,
     };
@@ -48,12 +52,16 @@ fn parse_args(args: &[String]) -> Result<Option<Config>, String> {
         if flag == "--help" || flag == "-h" {
             return Ok(None);
         }
-        if !matches!(flag.as_str(), "--out" | "--seed" | "--per-intent") {
+        if !matches!(
+            flag.as_str(),
+            "--out" | "--seed" | "--per-intent" | "--human"
+        ) {
             return Err(format!("unknown option '{flag}'"));
         }
         let value = iter.next().ok_or_else(|| format!("{flag} needs a value"))?;
         match flag.as_str() {
             "--out" => config.out = PathBuf::from(value),
+            "--human" => config.human = PathBuf::from(value),
             "--seed" => {
                 config.seed = value
                     .parse()
@@ -94,6 +102,52 @@ fn to_jsonl(examples: &[Example]) -> Result<String, String> {
     Ok(out)
 }
 
+/// Read and validate the human-written test set. A missing file means no sentences.
+fn read_human(path: &Path, intents: &[catalog::Intent]) -> Result<Vec<Example>, Vec<String>> {
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(vec![format!("{}: {e}", path.display())]),
+    };
+    let examples = dataset::human::parse(&text, intents).map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|e| format!("{}: {e}", path.display()))
+            .collect::<Vec<_>>()
+    })?;
+    Ok(examples
+        .into_iter()
+        .map(|h| Example {
+            text: h.text,
+            tokens: h.tokens,
+            tags: h.tags,
+            intent: h.intent,
+            slots: h.slots,
+            command: h.command,
+        })
+        .collect())
+}
+
+/// Write human.jsonl only when there are sentences, and only when its content changed, so its
+/// modification time tells `intent eval --set human` whether the model predates it. Without
+/// sentences, remove a stale file.
+fn write_human(dir: &Path, human: &[Example]) -> Result<(), String> {
+    let path = dir.join("human.jsonl");
+    if human.is_empty() {
+        return match fs::remove_file(&path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                Err(format!("could not remove {}: {e}", path.display()))
+            }
+            _ => Ok(()),
+        };
+    }
+    let text = to_jsonl(human)?;
+    if fs::read_to_string(&path).is_ok_and(|old| old == text) {
+        return Ok(());
+    }
+    write_atomic(dir, "human.jsonl", &text)
+}
+
 fn run(config: &Config) -> Result<(), Vec<String>> {
     let catalog = catalog::catalog();
     let intents = prepare(&catalog)?;
@@ -103,9 +157,11 @@ fn run(config: &Config) -> Result<(), Vec<String>> {
     let mut train_rng = Rng::new(config.seed);
     let mut test_rng = Rng::new(config.seed.wrapping_add(1));
     let mut dev_rng = Rng::new(config.seed.wrapping_add(2));
+    let human = read_human(&config.human, catalog.intents)?;
     let test = generate_test(&intents, catalog.pools, &mut test_rng).map_err(|e| vec![e])?;
     let dev = generate_dev(&intents, catalog.pools, &mut dev_rng).map_err(|e| vec![e])?;
-    let held_out: Vec<Example> = dev.iter().chain(&test).cloned().collect();
+    // Every held-out sentence (development, test, human) is kept out of training.
+    let held_out: Vec<Example> = dev.iter().chain(&test).chain(&human).cloned().collect();
     let train = generate_train(
         &intents,
         catalog.pools,
@@ -142,6 +198,7 @@ fn run(config: &Config) -> Result<(), Vec<String>> {
     ] {
         write_atomic(&config.out, name, &contents).map_err(|e| vec![e])?;
     }
+    write_human(&config.out, &human).map_err(|e| vec![e])?;
 
     let counts = counts_per_intent(&train);
     let min = counts.values().min().copied().unwrap_or(0);
@@ -161,6 +218,16 @@ fn run(config: &Config) -> Result<(), Vec<String>> {
     );
     println!("  development:        {}", dev.len());
     println!("  test examples:      {}", test.len());
+    match human.len() {
+        0 => println!(
+            "  human test:         none yet (write sentences in {})",
+            config.human.display()
+        ),
+        n => println!(
+            "  human test:         {n} (from {})",
+            config.human.display()
+        ),
+    }
     Ok(())
 }
 
